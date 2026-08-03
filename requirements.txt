@@ -18,3 +18,7 @@ aiosqlite
 orjson
 pytest
 httpx
+
+dash==3.2.0
+plotly==6.3.0
+gunicorn==23.0.0
