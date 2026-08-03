@@ -1,0 +1,77 @@
+# Virtual environments
+.venv/
+.venv_broken/
+venv/
+
+# Spyder project settings
+.spyproject/
+
+# Python-generated files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing and cache files
+.pytest_cache/
+.mypy_cache/
+
+# Local configuration and secrets
+.env
+.env.*
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Cache files - these are generated automatically and should not be committed
+cache/
+php/cache/dp4df/
+
+# IBTrACS data files - CSV and JSON cache files will be downloaded/generated on first use
+# This allows GitHub deployment to work without hitting file size limits
+*.csv
+php/cache/ibtracs/*.csv
+php/cache/ibtracs/*.json
+
+# Node modules (if any)
+node_modules/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude Code directory
+.claude/
+
+# Log files
+*.log
+error_log
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Azure-specific files
+*.azurewebsites.net
+config.local.php
+php/config.local.php
+
+# Composer vendor directory (if dependencies are added later)
+vendor/
+composer.lock
+
+# Azure deployment artifacts
+.deployment.bak
+
+# Client cyclone datasets
+data/*.csv
