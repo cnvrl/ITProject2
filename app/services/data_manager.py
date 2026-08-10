@@ -1,108 +1,70 @@
-#Backend data access for prepared TC-Explorer CSV tables.
-
-
 from __future__ import annotations
-import os
-from io import StringIO
+
 from pathlib import Path
-import pandas as pd
-from app.services.cache_manager import cache_manager
+from typing import Any, Optional
+
+from app.pipeline.ingest import Ingestor
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
-DATA_DIR = Path(os.getenv("TC_DATA_DIR", DEFAULT_DATA_DIR))
+class DataManager:
+    def __init__(self, data_dir: str | Path = 'data') -> None:
+        self.data_dir = Path(data_dir)
+        self.ingestor = Ingestor()
+        self.cache: dict[str, dict[str, Any]] = {}
 
-SOURCE_FILES: dict[tuple[str, str], str] = {
-    ("BARPA", "CDD"): "barpa_cdd_all_ssp370.csv",
-    ("BARPA", "TE"): "barpa_te_all_ssp370.csv",
-    ("CCAM", "CDD"): "ccam_cdd_all_ssp370.csv",
-    ("CCAM", "TE"): "ccam_te_all_ssp370.csv",
-}
+    def list_datasets(self) -> list[str]:
+        if not self.data_dir.exists():
+            return []
+        return sorted([p.name for p in self.data_dir.iterdir() if p.is_file()])
 
-REQUIRED_COLUMNS = {
-    "Model",
-    "Tracker",
-    "TrackID",
-    "Season",
-    "Time",
-    "Lon",
-    "Lat",
-    "Wspd",
-    "Pres",
-}
+    def load_dataset(self, filename: str, dataset_type: Optional[str] = None, force_reload: bool = False, **context: Any) -> dict[str, Any]:
+        cache_key = f'{dataset_type or "auto"}:{filename}'
+        if not force_reload and cache_key in self.cache:
+            return self.cache[cache_key]
+        file_path = self.data_dir / filename
+        result = self.ingestor.ingest(file_path, dataset_type=dataset_type, **context)
+        self.cache[cache_key] = result
+        return result
 
+    def get_tracks(self, filename: str, dataset_type: Optional[str] = None, filters: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
+        filters = filters or {}
+        result = self.load_dataset(filename, dataset_type=dataset_type)
+        records = result['records']
+        filtered = []
+        for record in records:
+            if filters.get('model') and record.model != filters['model']:
+                continue
+            if filters.get('tracker') and record.tracker != filters['tracker']:
+                continue
+            if filters.get('scenario') and record.scenario != filters['scenario']:
+                continue
+            if filters.get('year_min') and (record.year is None or record.year < filters['year_min']):
+                continue
+            if filters.get('year_max') and (record.year is None or record.year > filters['year_max']):
+                continue
+            filtered.append(record.model_dump(mode='json'))
+        return filtered
 
-def available_sources() -> list[dict[str, str | bool]]:
-    """Describe configured regional-model and tracker sources."""
-    result: list[dict[str, str | bool]] = []
-
-    for (regional_model, tracker), filename in SOURCE_FILES.items():
-        path = DATA_DIR / filename
-        result.append(
-            {
-                "regional_model": regional_model,
-                "tracker": tracker,
-                "filename": filename,
-                "available": path.is_file(),
+    def get_stats(self, filename: str, dataset_type: Optional[str] = None, filters: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        tracks = self.get_tracks(filename, dataset_type=dataset_type, filters=filters)
+        if not tracks:
+            return {
+                'total_cyclones': 0,
+                'landfall_count': 0,
+                'max_category': None,
+                'max_wind_speed': None,
+                'year_range': None,
             }
-        )
-
-    return result
-
-
-def _source_key(regional_model: str, tracker: str) -> tuple[str, str]:
-    regional_model = regional_model.upper()
-    tracker = tracker.upper()
-    key = (regional_model, tracker)
-
-    if key not in SOURCE_FILES:
-        raise ValueError(
-            "Unsupported source. regional_model must be BARPA or CCAM and "
-            "tracker must be CDD or TE."
-        )
-
-    return key
-
-
-def _read_prepared_csv(path: Path, regional_model: str) -> pd.DataFrame:
-    """Read one prepared flat table without model-specific transformations."""
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Prepared dataset not found: {path}. "
-            "Place the CSV in data or set TC_DATA_DIR."
-        )
-
-    frame = pd.read_csv(path, low_memory=False)
-    missing = sorted(REQUIRED_COLUMNS.difference(frame.columns))
-
-    if missing:
-        raise ValueError(
-            f"{path.name} is missing required prepared columns: {missing}"
-        )
-
-    # This is source metadata, not a replacement for the shared DB schema.
-    frame["RegionalModel"] = regional_model
-    return frame
-
-
-def get_dataset(regional_model: str, tracker: str) -> pd.DataFrame:
-    """Return one prepared dataset, using the in-memory cache when possible."""
-    key = _source_key(regional_model, tracker)
-    cache_key = f"dataset:{key[0]}:{key[1]}"
-
-    cached = cache_manager.get(cache_key)
-    if cached is not None:
-        return cached
-
-    filename = SOURCE_FILES[key]
-    frame = _read_prepared_csv(DATA_DIR / filename, key[0])
-    cache_manager.set(cache_key, frame)
-    return frame
-
-
-def dataframe_to_csv(frame: pd.DataFrame) -> str:
-    """Serialise a filtered table for the export endpoint."""
-    buffer = StringIO()
-    frame.to_csv(buffer, index=False)
-    return buffer.getvalue()
+        years = [t['year'] for t in tracks if t.get('year') is not None]
+        max_categories = [t['max_category'] for t in tracks if t.get('max_category') is not None]
+        max_winds = [t['max_wind_speed'] for t in tracks if t.get('max_wind_speed') is not None]
+        return {
+            'total_cyclones': len(tracks),
+            'landfall_count': sum(1 for t in tracks if t.get('landfall')),
+            'max_category': max(max_categories) if max_categories else None,
+            'max_wind_speed': max(max_winds) if max_winds else None,
+            'year_range': {
+                'min': min(years),
+                'max': max(years),
+            } if years else None,
+        }

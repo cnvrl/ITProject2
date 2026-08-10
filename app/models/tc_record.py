@@ -5,7 +5,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-
 DataSource = Literal["simulated", "real"]
 RegionalModel = Literal["BARPA", "CCAM"]
 TrackerType = Literal["CDD", "TE"]
@@ -16,8 +15,8 @@ class TCPoint(BaseModel):
     time: datetime
     lat: float = Field(..., ge=-90, le=90)
     lon: float = Field(..., ge=-180, le=180)
-    wind_speed: Optional[float] = Field(default=None, description="Maximum sustained wind speed at this timestep.")
-    pressure: Optional[float] = Field(default=None, description="Minimum central pressure at this timestep.")
+    wind_speed: Optional[float] = Field(default=None, ge=0)
+    pressure: Optional[float] = Field(default=None, ge=0)
     category: Optional[int] = Field(default=None, ge=0, le=5)
     over_land: Optional[bool] = None
 
@@ -34,7 +33,7 @@ class TCPoint(BaseModel):
 class TCRecord(BaseModel):
     track_id: str
     dataset_id: str
-    data_source: DataSource
+    data_source: DataSource = "simulated"
     model: Optional[RegionalModel] = None
     tracker: Optional[TrackerType] = None
     scenario: Optional[ScenarioType] = None
@@ -58,47 +57,31 @@ class TCRecord(BaseModel):
     source_file: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
 
-    @field_validator("genesis_lon", "landfall_lon")
-    @classmethod
-    def normalize_event_longitude(cls, value: Optional[float]) -> Optional[float]:
-        if value is None:
-            return value
-        if value > 180:
-            return value - 360
-        if value < -180:
-            return value + 360
-        return value
-
     @model_validator(mode="after")
-    def derive_summary_fields(self) -> "TCRecord":
-        if self.points:
-            ordered_points = sorted(self.points, key=lambda p: p.time)
-            self.points = ordered_points
-            first_point = ordered_points[0]
-            last_point = ordered_points[-1]
-            if self.genesis_time is None:
-                self.genesis_time = first_point.time
-            if self.genesis_lat is None:
-                self.genesis_lat = first_point.lat
-            if self.genesis_lon is None:
-                self.genesis_lon = first_point.lon
-            if self.year is None:
-                self.year = first_point.time.year
-            if self.lifetime_hours is None:
-                self.lifetime_hours = (last_point.time - first_point.time).total_seconds() / 3600
-            wind_values = [p.wind_speed for p in ordered_points if p.wind_speed is not None]
-            if wind_values and self.max_wind_speed is None:
-                self.max_wind_speed = max(wind_values)
-            pressure_values = [p.pressure for p in ordered_points if p.pressure is not None]
-            if pressure_values and self.min_pressure is None:
-                self.min_pressure = min(pressure_values)
-            category_values = [p.category for p in ordered_points if p.category is not None]
-            if category_values and self.max_category is None:
-                self.max_category = max(category_values)
-            if self.landfall and self.landfall_time is None:
-                land_points = [p for p in ordered_points if p.over_land]
-                if land_points:
-                    self.landfall_time = land_points[0].time
-                    self.landfall_lat = land_points[0].lat
-                    self.landfall_lon = land_points[0].lon
+    def derive_fields(self) -> "TCRecord":
+        if not self.points:
+            return self
+        self.points = sorted(self.points, key=lambda p: p.time)
+        first = self.points[0]
+        last = self.points[-1]
+        self.genesis_time = self.genesis_time or first.time
+        self.genesis_lat = self.genesis_lat if self.genesis_lat is not None else first.lat
+        self.genesis_lon = self.genesis_lon if self.genesis_lon is not None else first.lon
+        self.year = self.year or first.time.year
+        self.lifetime_hours = self.lifetime_hours if self.lifetime_hours is not None else (last.time - first.time).total_seconds() / 3600
+        winds = [p.wind_speed for p in self.points if p.wind_speed is not None]
+        pressures = [p.pressure for p in self.points if p.pressure is not None]
+        cats = [p.category for p in self.points if p.category is not None]
+        if winds and self.max_wind_speed is None:
+            self.max_wind_speed = max(winds)
+        if pressures and self.min_pressure is None:
+            self.min_pressure = min(pressures)
+        if cats and self.max_category is None:
+            self.max_category = max(cats)
+        if self.landfall and self.landfall_time is None:
+            land_points = [p for p in self.points if p.over_land]
+            if land_points:
+                self.landfall_time = land_points[0].time
+                self.landfall_lat = land_points[0].lat
+                self.landfall_lon = land_points[0].lon
         return self
