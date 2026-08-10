@@ -8,12 +8,14 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback, dcc, html, no_update
 
-# ---------------------------------------------------------------------------
-# Real data integration: DataManager -> Ingestor -> Loaders -> TCRecord
-# ---------------------------------------------------------------------------
 from app.services.data_manager import DataManager
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+APP_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = APP_DIR.parent
+DATA_DIR = PROJECT_DIR / "data"
+ASSETS_DIR = APP_DIR / "assets"
+
 DATASET_TYPE_BY_FILE = {
     "barpa_cdd_all_ssp370.csv": "barpa",
     "barpa_te_all_ssp370.csv": "barpa",
@@ -44,38 +46,42 @@ def load_real_data() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         records = result.get("records", [])
         for record in records:
+            dashboard_track_id = f"{record.dataset_id}:{record.track_id}"
             track_rows.append(
                 {
-                    "track_id": record.track_id,
+                    "track_id": dashboard_track_id,
                     "name": record.track_id,
                     "dataset": record.model or record.dataset_id,
                     "scenario": record.scenario or "unknown",
                     "region": record.region or "unknown",
                     "tracker": record.tracker or "unknown",
                     "year": record.year,
-                    "max_category": record.max_category if record.max_category is not None else 0,
-                    "max_wind_speed": record.max_wind_speed if record.max_wind_speed is not None else 0.0,
-                    "lifetime_hours": record.lifetime_hours if record.lifetime_hours is not None else 0.0,
+                    "max_category": record.max_category or 0,
+                    "max_wind_speed": record.max_wind_speed or 0.0,
+                    "lifetime_hours": record.lifetime_hours or 0.0,
                     "landfall": bool(record.landfall),
                     "genesis_lat": record.genesis_lat,
                     "genesis_lon": record.genesis_lon,
                     "last_lat": record.points[-1].lat if record.points else record.genesis_lat,
                     "last_lon": record.points[-1].lon if record.points else record.genesis_lon,
-                    "genesis_date": record.genesis_time.date().isoformat() if record.genesis_time else None,
+                    "genesis_date": (
+                        record.genesis_time.date().isoformat()
+                        if record.genesis_time
+                        else None
+                    ),
                 }
             )
             for step, point in enumerate(record.points):
                 point_rows.append(
-                    {
-                        "track_id": record.track_id,
-                        "step": step,
-                        "lat": point.lat,
-                        "lon": point.lon,
-                        "wind_speed": point.wind_speed if point.wind_speed is not None else 0.0,
-                        "category": point.category if point.category is not None else 0,
-                    }
-                )
-
+                {
+                    "track_id": dashboard_track_id,
+                    "step": step,
+                    "lat": point.lat,
+                    "lon": point.lon,
+                    "wind_speed": point.wind_speed if point.wind_speed is not None else 0.0,
+                    "category": point.category if point.category is not None else 0,
+                }
+            )   
     tracks_df = pd.DataFrame(track_rows)
     points_df = pd.DataFrame(point_rows)
 
@@ -188,7 +194,12 @@ def filter_tracks(
     ].copy()
 
 
-app = Dash(__name__, title="TC Explorer 2.0", suppress_callback_exceptions=True)
+app = Dash(
+    __name__,
+    title="TC Explorer 2.0",
+    suppress_callback_exceptions=True,
+    assets_folder=str(ASSETS_DIR),
+    )
 server = app.server
 
 
@@ -853,9 +864,16 @@ def export_filtered_data(_, ids):
         return no_update
 
     export_columns = [
-        "track_id", "name", "dataset", "scenario", "region", "tracker",
-        "year", "max_category", "max_wind_speed", "lifetime_hours",
-        "landfall", "genesis_lat", "genesis_lon", "genesis_date",
+    "track_id",
+    "name",
+    "dataset",
+    "scenario",
+    "region",
+    "tracker",
+    "year",
+    "max_category",
+    "max_wind_speed",
+    "lifetime_hours",
     ]
 
     output = TRACKS[TRACKS["track_id"].isin(ids)][export_columns]

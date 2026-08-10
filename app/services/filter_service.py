@@ -1,71 +1,40 @@
-"""Reusable backend filtering for prepared cyclone records."""
-
 from __future__ import annotations
 
-import pandas as pd
+from collections.abc import Iterable
+
+from app.models.tc_record import TCRecord
 
 
-def apply_filters(
-    frame: pd.DataFrame,
-    *,
-    driving_model: str | None = None,
-    start_season: int | None = None,
-    end_season: int | None = None,
-    min_wind: float | None = None,
-    max_wind: float | None = None,
-    min_lon: float | None = None,
-    max_lon: float | None = None,
-    min_lat: float | None = None,
-    max_lat: float | None = None,
-) -> pd.DataFrame:
-    """Return rows matching the requested API filters.
+class FilterService:
+    @staticmethod
+    def apply(
+        records: Iterable[TCRecord],
+        *,
+        models: list[str] | None = None,
+        trackers: list[str] | None = None,
+        scenarios: list[str] | None = None,
+        regions: list[str] | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
+        minimum_category: int = 0,
+    ) -> list[TCRecord]:
+        selected = []
 
-    ``Model`` in the supplied CSVs is the driving model (ERA5 or a CMIP6
-    model). BARPA/CCAM is carried separately as ``RegionalModel``.
-    """
-    if (
-        start_season is not None
-        and end_season is not None
-        and start_season > end_season
-    ):
-        raise ValueError("start_season must not be greater than end_season.")
+        for record in records:
+            if models and record.model not in models:
+                continue
+            if trackers and record.tracker not in trackers:
+                continue
+            if scenarios and record.scenario not in scenarios:
+                continue
+            if regions and record.region not in regions:
+                continue
+            if year_min is not None and (record.year is None or record.year < year_min):
+                continue
+            if year_max is not None and (record.year is None or record.year > year_max):
+                continue
+            if (record.max_category or 0) < minimum_category:
+                continue
+            selected.append(record)
 
-    if min_wind is not None and max_wind is not None and min_wind > max_wind:
-        raise ValueError("min_wind must not be greater than max_wind.")
-
-    if min_lon is not None and max_lon is not None and min_lon > max_lon:
-        raise ValueError("min_lon must not be greater than max_lon.")
-
-    if min_lat is not None and max_lat is not None and min_lat > max_lat:
-        raise ValueError("min_lat must not be greater than max_lat.")
-
-    mask = pd.Series(True, index=frame.index)
-
-    if driving_model:
-        mask &= frame["Model"].astype(str).str.casefold() == driving_model.casefold()
-
-    if start_season is not None:
-        mask &= frame["Season"] >= start_season
-
-    if end_season is not None:
-        mask &= frame["Season"] <= end_season
-
-    if min_wind is not None:
-        mask &= frame["Wspd"] >= min_wind
-
-    if max_wind is not None:
-        mask &= frame["Wspd"] <= max_wind
-
-    if min_lon is not None:
-        mask &= frame["Lon"] >= min_lon
-
-    if max_lon is not None:
-        mask &= frame["Lon"] <= max_lon
-
-    if min_lat is not None:
-        mask &= frame["Lat"] >= min_lat
-
-    if max_lat is not None:
-        mask &= frame["Lat"] <= max_lat
-
-    return frame.loc[mask].copy()
+        return selected

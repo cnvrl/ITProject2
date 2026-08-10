@@ -1,151 +1,62 @@
-"""Statistical calculations for the TC-Explorer backend."""
-
 from __future__ import annotations
 
-from typing import Any
+from collections import Counter
+from statistics import mean, median
+from typing import Iterable
 
-import pandas as pd
-
-
-TRACK_COLUMNS = [
-    "RegionalModel",
-    "Model",
-    "Tracker",
-    "Season",
-    "TrackID",
-]
+from app.models.tc_record import TCRecord
 
 
-def calculate_statistics(
-    frame: pd.DataFrame,
-    metric: str,
-) -> dict[str, Any]:
-    """Calculate one supported statistical response."""
-    metric = metric.casefold()
+class StatsEngine:
+    @staticmethod
+    def summary(records: Iterable[TCRecord]) -> dict:
+        records = list(records)
 
-    if metric == "summary":
-        return _summary(frame)
-
-    if metric == "frequency":
-        return _frequency(frame)
-
-    if metric == "intensity":
-        return _intensity(frame)
-
-    if metric in {"lifetime", "translation_speed"}:
-        raise NotImplementedError(
-            f"{metric} requires Member 2 to confirm and normalise the Time "
-            "field before the backend calculates it."
-        )
-
-    raise ValueError(
-        "metric must be summary, frequency, intensity, lifetime, "
-        "or translation_speed."
-    )
-
-
-def _summary(frame: pd.DataFrame) -> dict[str, Any]:
-    if frame.empty:
-        return {
-            "metric": "summary",
-            "row_count": 0,
-            "track_count": 0,
-            "season_min": None,
-            "season_max": None,
-            "maximum_wind": None,
-            "minimum_pressure": None,
-        }
-
-    tracks = frame[TRACK_COLUMNS].drop_duplicates()
-
-    return {
-        "metric": "summary",
-        "row_count": int(len(frame)),
-        "track_count": int(len(tracks)),
-        "season_min": int(frame["Season"].min()),
-        "season_max": int(frame["Season"].max()),
-        "maximum_wind": _safe_float(frame["Wspd"].max()),
-        "minimum_pressure": _safe_float(frame["Pres"].min()),
-    }
-
-
-def _frequency(frame: pd.DataFrame) -> dict[str, Any]:
-    if frame.empty:
-        return {"metric": "frequency", "results": []}
-
-    result = (
-        frame.groupby(
-            ["RegionalModel", "Model", "Tracker", "Season"],
-            dropna=False,
-        )["TrackID"]
-        .nunique()
-        .reset_index(name="cyclone_count")
-        .sort_values(["Model", "Season"])
-    )
-
-    result = result.rename(
-        columns={
-            "RegionalModel": "regional_model",
-            "Model": "driving_model",
-            "Tracker": "tracker",
-            "Season": "season",
-        }
-    )
-
-    return {
-        "metric": "frequency",
-        "results": result.to_dict(orient="records"),
-    }
-
-
-def _intensity(frame: pd.DataFrame) -> dict[str, Any]:
-    if frame.empty:
-        return {"metric": "intensity", "results": []}
-
-    per_track = (
-        frame.groupby(TRACK_COLUMNS, dropna=False)
-        .agg(
-            maximum_wind=("Wspd", "max"),
-            minimum_pressure=("Pres", "min"),
-        )
-        .reset_index()
-    )
-
-    result = (
-        per_track.groupby(
-            ["RegionalModel", "Model", "Tracker"],
-            dropna=False,
-        )
-        .agg(
-            track_count=("TrackID", "count"),
-            mean_track_maximum_wind=("maximum_wind", "mean"),
-            overall_maximum_wind=("maximum_wind", "max"),
-            mean_track_minimum_pressure=("minimum_pressure", "mean"),
-            overall_minimum_pressure=("minimum_pressure", "min"),
-        )
-        .reset_index()
-        .rename(
-            columns={
-                "RegionalModel": "regional_model",
-                "Model": "driving_model",
-                "Tracker": "tracker",
+        if not records:
+            return {
+                "total_cyclones": 0,
+                "landfalls": 0,
+                "frequency_by_year": {},
+                "category_distribution": {},
+                "average_lifetime_hours": None,
+                "median_lifetime_hours": None,
+                "average_max_wind_speed": None,
+                "maximum_wind_speed": None,
+                "average_translation_speed_kmh": None,
             }
+
+        lifetimes = [
+            record.lifetime_hours
+            for record in records
+            if record.lifetime_hours is not None
+        ]
+        winds = [
+            record.max_wind_speed
+            for record in records
+            if record.max_wind_speed is not None
+        ]
+        speeds = [
+            record.translation_speed_mean
+            for record in records
+            if record.translation_speed_mean is not None
+        ]
+
+        frequency = Counter(
+            record.year for record in records if record.year is not None
         )
-    )
+        categories = Counter(
+            record.max_category if record.max_category is not None else 0
+            for record in records
+        )
 
-    numeric_columns = [
-        "mean_track_maximum_wind",
-        "overall_maximum_wind",
-        "mean_track_minimum_pressure",
-        "overall_minimum_pressure",
-    ]
-    result[numeric_columns] = result[numeric_columns].round(3)
-
-    return {
-        "metric": "intensity",
-        "results": result.to_dict(orient="records"),
-    }
-
-
-def _safe_float(value: Any) -> float | None:
-    return None if pd.isna(value) else float(value)
+        return {
+            "total_cyclones": len(records),
+            "landfalls": sum(record.landfall for record in records),
+            "frequency_by_year": dict(sorted(frequency.items())),
+            "category_distribution": dict(sorted(categories.items())),
+            "average_lifetime_hours": mean(lifetimes) if lifetimes else None,
+            "median_lifetime_hours": median(lifetimes) if lifetimes else None,
+            "average_max_wind_speed": mean(winds) if winds else None,
+            "maximum_wind_speed": max(winds) if winds else None,
+            "average_translation_speed_kmh": mean(speeds) if speeds else None,
+        }

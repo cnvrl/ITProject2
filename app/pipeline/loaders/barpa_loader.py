@@ -3,70 +3,148 @@ from __future__ import annotations
 import csv
 from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
-from app.models.tc_record import TCPoint
+from app.models.tc_record import TCPoint, TCRecord
 from app.pipeline.loaders.base import BaseTCLoader
 
 
 class BARPALoader(BaseTCLoader):
-    time_formats = ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y/%m/%d %H:%M")
-
-    def parse_time(self, value: str) -> datetime:
-        for fmt in self.time_formats:
-            try:
-                return datetime.strptime(value, fmt)
-            except ValueError:
-                continue
-        return datetime.fromisoformat(value.replace('Z', '+00:00'))
-
     @staticmethod
-    def normalize_row(row: dict) -> dict:
-        return {key.strip().lower(): value for key, value in row.items()}
+    def parse_time(value: str) -> datetime:
+        value = value.strip().replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y%m%d %H%M",
+            ):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    pass
+        raise ValueError(f"Unsupported timestamp: {value}")
 
-    def load(self) -> list:
-        grouped: dict[str, list[TCPoint]] = defaultdict(list)
-        with self.source_file.open('r', encoding='utf-8-sig', newline='') as f:
-            reader = csv.DictReader(f)
+    def load(self) -> list[TCRecord]:
+        grouped: dict[tuple[str, str, str, str], list[TCPoint]] = defaultdict(list)
+
+        with self.source_file.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+
             for raw_row in reader:
                 row = self.normalize_row(raw_row)
 
-                track_id = (
-                    row.get('track_id')
-                    or row.get('trackid')
-                    or row.get('storm_id')
-                    or row.get('tc_id')
+                raw_track_id = (
+                    row.get("trackid")
+                    or row.get("track_id")
+                    or row.get("stormid")
+                    or row.get("tcid")
                 )
-                time_value = (row.get('time') or '').strip()
-                lat_value = (row.get('lat') or row.get('latitude') or '').strip()
-                lon_value = (row.get('lon') or row.get('longitude') or '').strip()
+                time_text = row.get("time")
+                lat = self.to_float(row.get("lat") or row.get("latitude"))
+                lon = self.to_float(row.get("lon") or row.get("longitude"))
 
-                if not track_id or not time_value or not lat_value or not lon_value:
+                if not raw_track_id or not time_text or lat is None or lon is None:
                     continue
 
                 try:
-                    parsed_time = self.parse_time(time_value)
-                    lat = float(lat_value)
-                    lon = float(lon_value)
-                except (ValueError, TypeError):
+                    point_time = self.parse_time(time_text)
+                except ValueError:
                     continue
 
-                grouped[track_id].append(
-                    TCPoint(
-                        time=parsed_time,
-                        lat=lat,
-                        lon=lon,
-                        wind_speed=self.to_float(
-                            row.get('wind_speed') or row.get('wind') or row.get('wspd')
-                        ),
-                        pressure=self.to_float(row.get('pressure') or row.get('pres')),
-                        category=self.to_int(row.get('category')),
-                        over_land=(
-                            row.get('over_land', '').strip().lower() in {'1', 'true', 'yes'}
-                        ) if row.get('over_land') is not None else None,
+                model = row.get("model") or "BARPA"
+                tracker = row.get("tracker") or (
+                    "CDD" if "cdd" in self.source_file.name.lower() else "TE"
+                )
+                season = row.get("season") or str(point_time.year)
+
+                raw_wind_speed = self.to_float(
+                    row.get("wspd")
+                    or row.get("wind_speed")
+                    or row.get("windspeed")
+                    or row.get("wind")
+                )
+
+                point = TCPoint(
+                    time=point_time,
+                    lat=lat,
+                    lon=lon,
+                    wind_speed=(
+                        self.metres_per_second_to_kmh(raw_wind_speed)
+                        if raw_wind_speed is not None
+                        else None
+                    ),
+                    pressure=self.to_float(
+                        row.get("pres")
+                        or row.get("pressure")
+                        or row.get("pmin")
+                    ),
+                    category=self.to_int(row.get("category")),
+                    over_land=self.to_bool(
+                        row.get("overland") or row.get("landfallflag")
+                    ),
+                )
+
+                key = (str(model), str(tracker), str(season), str(raw_track_id))
+                grouped[key].append(point)
+
+        records: list[TCRecord] = []
+        max_gap_hours = 48
+
+        for (model, tracker, season, raw_track_id), points in grouped.items():
+            points = sorted(points, key=lambda point: point.time)
+            segments: list[list[TCPoint]] = []
+            current_segment: list[TCPoint] = []
+
+            for point in points:
+                if current_segment:
+                    previous_point = current_segment[-1]
+                    gap_hours = (
+                        point.time - previous_point.time
+                    ).total_seconds() / 3600
+
+                    if gap_hours > max_gap_hours:
+                        segments.append(current_segment)
+                        current_segment = []
+
+                current_segment.append(point)
+
+            if current_segment:
+                segments.append(current_segment)
+
+            for segment_number, segment in enumerate(segments, start=1):
+                record_id = (
+                    f"{self.dataset_id}"
+                    f"|{model}"
+                    f"|{tracker}"
+                    f"|season-{season}"
+                    f"|track-{raw_track_id}"
+                    f"|segment-{segment_number}"
+                )
+
+                records.append(
+                    self.build_record(
+                        track_id=record_id,
+                        points=segment,
+                        model="BARPA",
+                        tracker=tracker if tracker in {"CDD", "TE"} else None,
+                        scenario="historical"
+                        if model.upper() == "ERA5"
+                        else "future",
+                        region="Australia",
+                        metadata={
+                            "raw_track_id": raw_track_id,
+                            "season": season,
+                            "source_model_value": model,
+                            "source_tracker_value": tracker,
+                            "segment_number": segment_number,
+                            "segment_gap_threshold_hours": max_gap_hours,
+                            "wind_speed_source_unit": "m/s",
+                            "wind_speed_standard_unit": "km/h",
+                        },
                     )
                 )
-        return [
-            self.build_record(track_id=track_id, points=points, model='BARPA')
-            for track_id, points in grouped.items()
-            if points
-        ]
+
+        return records

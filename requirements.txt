@@ -22,3 +22,9 @@ plotly
 dash==3.2.0
 plotly==6.3.0
 gunicorn==23.0.0
+# For Local run
+fastapi
+uvicorn 
+pydantic
+plotly
+dash

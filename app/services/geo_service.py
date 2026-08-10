@@ -1,94 +1,66 @@
-#GeoJSON conversion for cyclone-track API responses.
-
-
-
 from __future__ import annotations
 
-from typing import Any
+from typing import Iterable
 
-import pandas as pd
-
-
-TRACK_COLUMNS = [
-    "RegionalModel",
-    "Model",
-    "Tracker",
-    "Season",
-    "TrackID",
-]
+from app.models.tc_record import TCRecord
 
 
-def to_feature_collection(
-    frame: pd.DataFrame,
-    *,
-    limit: int = 250,
-) -> dict[str, Any]:
-    """Convert filtered cyclone points into a GeoJSON FeatureCollection."""
-    if limit < 1 or limit > 2000:
-        raise ValueError("limit must be between 1 and 2000.")
+class GeoService:
+    @staticmethod
+    def track_geojson(records: Iterable[TCRecord]) -> dict:
+        features = []
 
-    if frame.empty:
-        return {"type": "FeatureCollection", "count": 0, "features": []}
+        for record in records:
+            if len(record.points) < 2:
+                continue
 
-    working = frame.dropna(subset=["Lon", "Lat"]).copy()
-    working["_time_sort"] = pd.to_datetime(
-        working["Time"],
-        errors="coerce",
-        utc=True,
-    )
-    working = working.sort_values(TRACK_COLUMNS + ["_time_sort"])
+            features.append(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "track_id": record.track_id,
+                        "dataset_id": record.dataset_id,
+                        "model": record.model,
+                        "tracker": record.tracker,
+                        "scenario": record.scenario,
+                        "year": record.year,
+                        "max_category": record.max_category,
+                        "max_wind_speed": record.max_wind_speed,
+                        "landfall": record.landfall,
+                    },
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [
+                            [point.lon, point.lat] for point in record.points
+                        ],
+                    },
+                }
+            )
 
-    features: list[dict[str, Any]] = []
+        return {"type": "FeatureCollection", "features": features}
 
-    for key, track in working.groupby(TRACK_COLUMNS, sort=False, dropna=False):
-        if len(features) >= limit:
-            break
+    @staticmethod
+    def genesis_geojson(records: Iterable[TCRecord]) -> dict:
+        features = []
 
-        coordinates = [
-            [float(lon), float(lat)]
-            for lon, lat in zip(track["Lon"], track["Lat"])
-        ]
+        for record in records:
+            if record.genesis_lat is None or record.genesis_lon is None:
+                continue
 
-        if len(coordinates) < 2:
-            continue
+            features.append(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "track_id": record.track_id,
+                        "model": record.model,
+                        "tracker": record.tracker,
+                        "year": record.year,
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [record.genesis_lon, record.genesis_lat],
+                    },
+                }
+            )
 
-        regional_model, driving_model, tracker, season, track_id = key
-        time_values = track["_time_sort"].dropna()
-
-        properties: dict[str, Any] = {
-            "regional_model": str(regional_model),
-            "driving_model": str(driving_model),
-            "tracker": str(tracker),
-            "season": int(season),
-            "track_id": int(track_id),
-            "point_count": len(coordinates),
-            "maximum_wind": _safe_float(track["Wspd"].max()),
-            "minimum_pressure": _safe_float(track["Pres"].min()),
-            "start_time": (
-                time_values.min().isoformat() if not time_values.empty else None
-            ),
-            "end_time": (
-                time_values.max().isoformat() if not time_values.empty else None
-            ),
-        }
-
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coordinates,
-                },
-                "properties": properties,
-            }
-        )
-
-    return {
-        "type": "FeatureCollection",
-        "count": len(features),
-        "features": features,
-    }
-
-
-def _safe_float(value: Any) -> float | None:
-    return None if pd.isna(value) else float(value)
+        return {"type": "FeatureCollection", "features": features}
