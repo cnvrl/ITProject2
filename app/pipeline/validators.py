@@ -1,3 +1,30 @@
+"""
+validators.py
+The validators module provides functions for validating TCRecord objects representing cyclone tracks. It checks for scientific plausibility, completeness, and consistency of the track data. The module includes functions to validate individual records, determine if a record is usable, and generate a summary report of validation results for a collection of records.
+
+functions:
+    - validate_record(record: TCRecord) -> list[str]: Validates a single TCRecord and returns a list of issues found.
+    - is_record_usable(record: TCRecord) -> bool: Determines if a TCRecord passes all scientific plausibility checks.
+    - validate_records(records: Iterable[TCRecord]) -> dict: Validates a collection of TCRecords and returns a summary report of validation results.
+
+constants:
+    - MIN_POINTS_PER_TRACK: Minimum number of valid points required for a track to be considered valid.
+    - MAX_TC_LIFETIME_HOURS: Maximum plausible lifetime of a tropical cyclone in hours.
+    - MAX_POINT_GAP_HOURS: Maximum allowed gap between consecutive points in a track in hours.
+    - MAX_REASONABLE_TRANSLATION_SPEED_KMH: Maximum reasonable translation speed of a tropical cyclone in km/h.
+
+returns:
+    - issues: A list of strings describing any issues found during validation.
+    - validation_report: A dictionary summarizing the validation results for a collection of TCRecords, including counts of valid and invalid records, total points, and issue counts.
+    - total_records: Total number of records processed.
+    - usable_records: Number of records that passed all validation checks.
+    - invalid_count: Number of records that failed validation checks.
+    - total_points: Total number of points across all records.
+    - valid_track_ids: List of track IDs for records that passed validation.
+    - invalid_records: List of dictionaries containing details of records that failed validation, including track ID, dataset ID, point count, lifetime, and issues.
+    - issue_counts: A dictionary counting the occurrences of each validation issue across all records.
+"""
+
 from __future__ import annotations
 
 from collections import Counter

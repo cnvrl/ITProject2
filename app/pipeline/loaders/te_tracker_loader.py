@@ -1,3 +1,15 @@
+"""
+
+te_tracker_loader.py
+The TETrackerLoader class is a specialized loader for cyclone track data from the TE dataset. It determines whether to use the BARPALoader or CCAMLoader based on the source file name, and then loads the data accordingly. After loading, it sets the tracker attribute of each TCRecord to "TE".
+
+Class: TETrackerLoader(BaseTCLoader)
+    - Inherits from BaseTCLoader and implements the load() method to read TE CSV files.
+    - Determines the appropriate loader (BARPALoader or CCAMLoader) based on the source file name.
+    - Loads the data using the selected loader and sets the tracker attribute of each TCRecord to "TE".
+    - Returns a list of TCRecord objects representing the cyclone tracks.
+
+"""
 from __future__ import annotations
 
 from app.pipeline.loaders.barpa_loader import BARPALoader

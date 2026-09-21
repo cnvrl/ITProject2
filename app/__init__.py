@@ -1,1 +1,0 @@
-"""TC-DECA 2.0 application package."""

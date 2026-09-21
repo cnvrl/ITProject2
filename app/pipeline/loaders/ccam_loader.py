@@ -1,3 +1,15 @@
+"""
+
+ccam_loader.py
+The CCAM loader is responsible for loading cyclone track data from CCAM CSV files into TCRecord objects. It handles parsing of timestamps, grouping of points into tracks and segments, and conversion of wind speed units. The loader also derives metadata such as model, tracker, season, and segment number for each track.
+
+class: CCAMLoader(BaseTCLoader)
+    - Inherits from BaseTCLoader and implements the load() method to read CCAM CSV files.
+    - Parses timestamps, normalizes row data, and converts values to appropriate types.
+    - Groups points by model, tracker, season, and raw track ID, and segments tracks based on time gaps.
+    - Returns a list of TCRecord objects representing the cyclone tracks.
+
+"""
 from __future__ import annotations
 
 import csv
@@ -10,13 +22,6 @@ from app.pipeline.loaders.base import BaseTCLoader
 
 
 class CCAMLoader(BaseTCLoader):
-    """
-    Load CCAM CSV track data.
-
-    A raw TrackID can recur in an aggregated source file. A distinct TC
-    record is therefore defined by model + tracker + season + raw TrackID +
-    a contiguous time segment. A gap longer than 48 hours starts a new track.
-    """
 
     MAX_GAP_HOURS = 48.0
 

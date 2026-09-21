@@ -51,10 +51,24 @@ def load_real_data() -> tuple[pd.DataFrame, pd.DataFrame]:
                 {
                     "track_id": dashboard_track_id,
                     "name": record.track_id,
-                    "dataset": record.model or record.dataset_id,
+                    "dataset": (record.model or record.dataset_id or "unknown").upper(),
+                    "driving_model": str(
+                        (record.metadata or {}).get("source_model_value")
+                        or record.model
+                        or "unknown"
+                    ).strip(),
+                    "raw_track_id": str(
+                        (record.metadata or {}).get("raw_track_id")
+                        or record.track_id
+                    ).strip(),
+                    "season": str(
+                        (record.metadata or {}).get("season")
+                        or record.year
+                        or "unknown"
+                    ).strip(),
                     "scenario": record.scenario or "unknown",
                     "region": record.region or "unknown",
-                    "tracker": record.tracker or "unknown",
+                    "tracker": (record.tracker or "unknown").upper(),
                     "year": record.year,
                     "max_category": record.max_category or 0,
                     "max_wind_speed": record.max_wind_speed or 0.0,
@@ -102,8 +116,9 @@ except Exception as exc:  # noqa: BLE001
     DATA_LOAD_ERROR = str(exc)
     TRACKS = pd.DataFrame(
         columns=[
-            "track_id", "name", "dataset", "scenario", "region", "tracker",
-            "year", "max_category", "max_wind_speed", "lifetime_hours",
+            "track_id", "name", "dataset", "driving_model", "raw_track_id",
+            "season", "scenario", "region", "tracker", "year", "max_category",
+            "max_wind_speed", "lifetime_hours",
             "landfall", "genesis_lat", "genesis_lon", "last_lat", "last_lon",
             "genesis_date",
         ]
@@ -112,6 +127,32 @@ except Exception as exc:  # noqa: BLE001
 
 YEAR_MIN = int(TRACKS["year"].min()) if not TRACKS.empty else 1980
 YEAR_MAX = int(TRACKS["year"].max()) if not TRACKS.empty else 2025
+
+MODEL_GUIDE = {
+    ("BARPA", "CDD"): [
+        "ACCESS-CM2", "ACCESS-ESM1.5", "CESM2", "CMCC-ESM2", "EC-Earth3", "ERA5",
+    ],
+    ("BARPA", "TE"): [
+        "ACCESS-CM2", "ACCESS-ESM1.5", "CESM2", "CMCC-ESM2", "EC-Earth3", "ERA5",
+        "MPI-ESM1-2-HR", "NorESM2-MM",
+    ],
+    ("CCAM", "CDD"): ["ACCESS-CM", "ACCESS-CM2", "ERA5"],
+    ("CCAM", "TE"): [
+        "ACCESS-CM2", "ACCESS-ESM1.5", "CESM2", "CMCC-ESM2", "EC-Earth3", "ERA5",
+        "NorESM2-MM",
+    ],
+}
+ALL_MODELS = list(dict.fromkeys(
+    model
+    for models in MODEL_GUIDE.values()
+    for model in models
+))
+SOURCE_MODELS = sorted(
+    TRACKS["driving_model"].dropna().unique().tolist()
+) if not TRACKS.empty and "driving_model" in TRACKS else []
+for source_model in SOURCE_MODELS:
+    if source_model not in ALL_MODELS:
+        ALL_MODELS.append(source_model)
 
 CATEGORY_COLOURS = {
     0: "#94a3b8",
@@ -176,6 +217,7 @@ def filter_tracks(
     regions: list[str],
     scenarios: list[str],
     trackers: list[str],
+    models: list[str],
     years: list[int],
     minimum_category: int,
 ) -> pd.DataFrame:
@@ -189,6 +231,7 @@ def filter_tracks(
         & TRACKS["region"].isin(regions or [])
         & TRACKS["scenario"].isin(scenarios or [])
         & TRACKS["tracker"].isin(trackers or [])
+        & TRACKS["driving_model"].isin(models or [])
         & TRACKS["year"].between(start_year, end_year)
         & (TRACKS["max_category"] >= minimum_category)
     ].copy()
@@ -266,9 +309,12 @@ app.layout = html.Div(
                         dcc.Dropdown(
                             id="dataset-filter",
                             options=options(unique_sorted("dataset")),
-                            value=unique_sorted("dataset"),
-                            multi=True,
+                            value=unique_sorted("dataset")[0] if unique_sorted("dataset") else None,
+                            multi=False,
+                            searchable=False,
                             clearable=False,
+                            placeholder="Select dataset",
+                            className="filter-dropdown",
                         ),
 
                         html.Label("Region"),
@@ -289,14 +335,30 @@ app.layout = html.Div(
                             clearable=False,
                         ),
 
-                        html.Label("Tracking method"),
+                        html.Label("Cyclone tracker"),
                         dcc.Dropdown(
                             id="tracker-filter",
                             options=options(unique_sorted("tracker")),
-                            value=unique_sorted("tracker"),
-                            multi=True,
+                            value=unique_sorted("tracker")[0] if unique_sorted("tracker") else None,
+                            multi=False,
+                            searchable=False,
                             clearable=False,
+                            placeholder="Select tracker",
+                            className="filter-dropdown",
                         ),
+
+                        html.Label("Driving model"),
+                        dcc.Dropdown(
+                            id="model-filter",
+                            options=options(ALL_MODELS),
+                            value=None,
+                            multi=False,
+                            searchable=True,
+                            clearable=False,
+                            placeholder="Select model",
+                            className="filter-dropdown model-dropdown",
+                        ),
+                        html.Div(id="model-availability-message", className="filter-message"),
 
                         html.Div(
                             [
@@ -458,9 +520,9 @@ app.layout = html.Div(
                                     children=[
                                         html.Div(
                                             [
-                                                html.H3("Selected cyclone map"),
+                                                html.H3("Selected cyclone track"),
                                                 html.P(
-                                                    "Only the selected cyclone is displayed"
+                                                    "Track shown over an Australia reference map"
                                                 ),
                                             ]
                                         ),
@@ -472,6 +534,31 @@ app.layout = html.Div(
                                         id="cyclone-map",
                                         config={"displaylogo": False, "responsive": True},
                                         style={"height": "430px"},
+                                    ),
+                                    type="circle",
+                                ),
+                            ],
+                        ),
+
+                        html.Section(
+                            className="panel heatmap-panel",
+                            children=[
+                                html.Div(
+                                    className="panel-heading",
+                                    children=[
+                                        html.Div(
+                                            [
+                                                html.H3("Track-density heat map"),
+                                                html.P("Filtered cyclone observations over an Australia reference map"),
+                                            ]
+                                        ),
+                                    ],
+                                ),
+                                dcc.Loading(
+                                    dcc.Graph(
+                                        id="density-heatmap",
+                                        config={"displaylogo": False, "responsive": True},
+                                        style={"height": "500px"},
                                     ),
                                     type="circle",
                                 ),
@@ -491,6 +578,49 @@ def show_year_range(years):
 
 
 @callback(
+    Output("model-filter", "options"),
+    Output("model-filter", "value"),
+    Output("model-availability-message", "children"),
+    Input("dataset-filter", "value"),
+    Input("tracker-filter", "value"),
+    State("model-filter", "value"),
+)
+def update_model_options(dataset, tracker, selected_model):
+    if not dataset or not tracker:
+        return options(ALL_MODELS), None, "Choose a dataset and tracker to see available models."
+
+    loaded_models = set(
+        TRACKS.loc[
+            (TRACKS["dataset"] == dataset) & (TRACKS["tracker"] == tracker),
+            "driving_model",
+        ].dropna().unique().tolist()
+    )
+    configured_models = MODEL_GUIDE.get((dataset, tracker), [])
+    available = [model for model in configured_models if model in loaded_models]
+    available_set = set(available)
+    model_options = [
+        {
+            "label": model if model in available_set else f"{model} — unavailable for {dataset} + {tracker}",
+            "value": model,
+            "disabled": model not in available_set,
+            "title": (
+                f"Available for {dataset} + {tracker}"
+                if model in available_set
+                else f"No configured records are available for {dataset} + {tracker}"
+            ),
+        }
+        for model in ALL_MODELS
+    ]
+    removed = bool(selected_model and selected_model not in available_set)
+    selected_value = selected_model if selected_model in available_set else (available[0] if available else None)
+    message = f"{len(available)} models available for {dataset} + {tracker}."
+    if removed:
+        message += f" {selected_model} is not available for this dataset and tracker; the selection was updated."
+    elif not available:
+        message = f"No models are available for {dataset} + {tracker}."
+    return model_options, selected_value, message
+
+@callback(
     Output("dataset-filter", "value"),
     Output("region-filter", "value"),
     Output("scenario-filter", "value"),
@@ -501,11 +631,13 @@ def show_year_range(years):
     prevent_initial_call=True,
 )
 def reset_filters(_):
+    datasets = unique_sorted("dataset")
+    trackers = unique_sorted("tracker")
     return (
-        unique_sorted("dataset"),
+        datasets[0] if datasets else None,
         unique_sorted("region"),
         unique_sorted("scenario"),
-        unique_sorted("tracker"),
+        trackers[0] if trackers else None,
         [YEAR_MIN, YEAR_MAX],
         0,
     )
@@ -528,12 +660,13 @@ def reset_filters(_):
     Output("selected-cyclone", "options"),
     Input("apply-filters", "n_clicks"),
     Input("reset-filters", "n_clicks"),
-    State("dataset-filter", "value"),
-    State("region-filter", "value"),
-    State("scenario-filter", "value"),
-    State("tracker-filter", "value"),
-    State("year-filter", "value"),
-    State("category-filter", "value"),
+    Input("dataset-filter", "value"),
+    Input("region-filter", "value"),
+    Input("scenario-filter", "value"),
+    Input("tracker-filter", "value"),
+    Input("model-filter", "value"),
+    Input("year-filter", "value"),
+    Input("category-filter", "value"),
 )
 def update_dashboard(
     _,
@@ -541,15 +674,17 @@ def update_dashboard(
     datasets,
     regions,
     scenarios,
-    trackers,
+    tracker,
+    models,
     years,
     minimum_category,
 ):
     selected = filter_tracks(
-        datasets,
+        [datasets] if datasets else [],
         regions,
         scenarios,
-        trackers,
+        [tracker] if tracker else [],
+        [models] if models else [],
         years,
         minimum_category,
     )
@@ -652,11 +787,20 @@ def update_dashboard(
 
     rows = []
     for _, row in top.iterrows():
+        cyclone_name = f"Cyclone {row['raw_track_id']} ({row['season']})"
         rows.append(
             html.Tr(
                 [
-                    html.Td(html.Strong(row["track_id"])),
+                    html.Td(
+                        [
+                            html.Strong(cyclone_name),
+                            html.Small(f"{row['dataset']} · {row['tracker']} · {row['driving_model']}", className="track-meta"),
+                        ],
+                        title=row["track_id"],
+                    ),
                     html.Td(row["dataset"]),
+                    html.Td(row["driving_model"]),
+                    html.Td(row["tracker"]),
                     html.Td(row["region"]),
                     html.Td(str(row["year"])),
                     html.Td(
@@ -679,6 +823,8 @@ def update_dashboard(
                     [
                         html.Th("Track"),
                         html.Th("Dataset"),
+                        html.Th("Model"),
+                        html.Th("Tracker"),
                         html.Th("Region"),
                         html.Th("Year"),
                         html.Th("Intensity"),
@@ -695,8 +841,9 @@ def update_dashboard(
     selector_options = [
         {
             "label": (
-                f"{row['track_id']} \u2014 Category {row['max_category']} \u2014 "
-                f"{row['max_wind_speed']:.0f} km/h"
+                f"Cyclone {row['raw_track_id']} ({row['season']}) — "
+                f"{row['dataset']} / {row['tracker']} / {row['driving_model']} — "
+                f"Category {row['max_category']} — {row['max_wind_speed']:.0f} km/h"
             ),
             "value": row["track_id"],
         }
@@ -706,7 +853,7 @@ def update_dashboard(
     return (
         ids,
         f"{count:,}",
-        f"Across {selected['dataset'].nunique()} datasets",
+        f"{selected['dataset'].iloc[0]} · {selected['tracker'].iloc[0]} · {selected['driving_model'].nunique()} model(s)",
         f"{landfalls:,}",
         f"{landfall_rate:.1f}% of selection",
         f"{average_wind:.0f} km/h",
@@ -752,6 +899,8 @@ def update_selected_map(selected_cyclone):
 
     figure = go.Figure()
 
+    cyclone_name = f"Cyclone {record['raw_track_id']} ({record['season']})"
+
     figure.add_trace(
         go.Scattergeo(
             lon=cyclone_points["lon"],
@@ -765,10 +914,10 @@ def update_selected_map(selected_cyclone):
                 "size": 5,
                 "color": CATEGORY_COLOURS[category],
             },
-            name=selected_cyclone,
+            name=cyclone_name,
             customdata=cyclone_points[["wind_speed", "category"]],
             hovertemplate=(
-                f"<b>{selected_cyclone}</b>"
+                f"<b>{cyclone_name}</b>"
                 "<br>Wind: %{customdata[0]} km/h"
                 "<br>Category: %{customdata[1]}"
                 "<extra></extra>"
@@ -808,19 +957,10 @@ def update_selected_map(selected_cyclone):
             )
         )
 
-    lon_padding = 5
-    lat_padding = 5
-
     figure.update_geos(
         projection_type="mercator",
-        lonaxis_range=[
-            cyclone_points["lon"].min() - lon_padding,
-            cyclone_points["lon"].max() + lon_padding,
-        ],
-        lataxis_range=[
-            cyclone_points["lat"].min() - lat_padding,
-            cyclone_points["lat"].max() + lat_padding,
-        ],
+        lonaxis_range=[105, 165],
+        lataxis_range=[-48, 2],
         showland=True,
         landcolor="#e9eef3",
         showocean=True,
@@ -854,6 +994,55 @@ def update_selected_map(selected_cyclone):
 
 
 @callback(
+    Output("density-heatmap", "figure"),
+    Input("filtered-track-ids", "data"),
+)
+def update_density_heatmap(track_ids):
+    if not track_ids:
+        return empty_figure("Apply filters to display track density", height=500)
+
+    density_points = POINTS[POINTS["track_id"].isin(track_ids)].copy()
+    density_points = density_points[
+        density_points["lat"].between(-48, 2)
+        & density_points["lon"].between(105, 165)
+    ]
+    if density_points.empty:
+        return empty_figure("No mapped observations match the filters", height=500)
+
+    max_points = 75_000
+    if len(density_points) > max_points:
+        density_points = density_points.sample(max_points, random_state=42)
+
+    figure = px.density_map(
+        density_points,
+        lat="lat",
+        lon="lon",
+        z=None,
+        radius=9,
+        center={"lat": -24.5, "lon": 134.5},
+        zoom=2.65,
+        map_style="carto-positron",
+        color_continuous_scale=[
+            [0.0, "rgba(23,105,170,0.00)"],
+            [0.20, "#8ecae6"],
+            [0.50, "#219ebc"],
+            [0.75, "#ffb703"],
+            [1.0, "#d62828"],
+        ],
+        labels={"density": "Track observations"},
+    )
+    figure.update_layout(
+        height=500,
+        autosize=False,
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)",
+        coloraxis_colorbar={"title": "Density", "thickness": 14},
+        uirevision="australia-density-map",
+    )
+    return figure
+
+
+@callback(
     Output("download-csv", "data"),
     Input("export-button", "n_clicks"),
     State("filtered-track-ids", "data"),
@@ -867,6 +1056,9 @@ def export_filtered_data(_, ids):
     "track_id",
     "name",
     "dataset",
+    "driving_model",
+    "raw_track_id",
+    "season",
     "scenario",
     "region",
     "tracker",
@@ -886,4 +1078,4 @@ def export_filtered_data(_, ids):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=8050)
+    app.run(debug=False, host="0.0.0.0", port=8050)

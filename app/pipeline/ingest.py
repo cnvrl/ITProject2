@@ -1,3 +1,32 @@
+"""
+ingest.py
+The Ingestor class is responsible for determining the appropriate loader for a given dataset file and loading the cyclone track data into TCRecord objects. It supports various dataset types and file formats, including CSV and NetCDF. The ingestor also standardizes the loaded records and validates them before returning the final result.
+
+class: Ingestor
+    - Determines the appropriate loader based on the dataset type or file name.
+    - Loads the cyclone track data using the selected loader.
+    - Standardizes the loaded records and validates them.
+    - Returns a dictionary containing the dataset ID, source file path, loader name, loaded records, and validation results.
+    - Raises FileNotFoundError if the source file does not exist.
+    - Raises ValueError if the loader cannot be determined for the given source file.
+
+    General Usage:
+        ingestor = Ingestor()
+        result = ingestor.ingest(source_file="path/to/dataset.csv", dataset_type="barpa", dataset_id="my_dataset")
+        records = result["records"]
+        validation = result["validation"]
+    
+    Returns:
+        A dictionary containing:
+            - dataset_id: The ID of the dataset.
+            - source_file: The path to the source file.
+            - loader: The name of the loader class used.
+            - records: A list of TCRecord objects representing the cyclone tracks.
+            - validation: A dictionary containing validation results for the loaded records.
+    
+        
+
+"""
 from __future__ import annotations
 
 from pathlib import Path

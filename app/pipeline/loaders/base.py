@@ -1,3 +1,7 @@
+"""
+base.py
+The BaseTCLoader class is an abstract base class for loading cyclone track data from various sources into TCRecord objects. It provides common functionality for parsing timestamps, normalizing row data, and converting values to appropriate types. Subclasses must implement the load() method to handle specific data formats and sources.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

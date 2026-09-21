@@ -1,3 +1,13 @@
+"""
+The TCRecord model is the main representation of a cyclone track, and contains a list of TCPoint objects representing the individual points along the track.
+The TCPoint model contains the time, location, and optional intensity and landfall information for a single point along a cyclone track.
+The TCRecord model also derives summary fields such as genesis time, landfall time, lifetime, maximum wind speed, minimum pressure, and translation speed from the list of TCPoint objects.
+
+
+"""
+
+
+
 from __future__ import annotations
 
 from datetime import datetime

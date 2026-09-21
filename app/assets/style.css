@@ -549,3 +549,83 @@ tbody tr:hover {
     max-width: 230px;
   }
 }
+
+/* Compact dependent filters: one explicit choice per dataset, tracker and model. */
+.filter-dropdown {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.filter-dropdown .Select-control {
+  min-height: 44px;
+  border-color: #cbd5e1;
+  border-radius: 8px;
+}
+
+.filter-dropdown .Select-placeholder,
+.filter-dropdown .Select-value-label,
+.filter-dropdown .Select-input > input {
+  line-height: 42px;
+}
+
+.filter-dropdown .Select-menu-outer {
+  z-index: 1200;
+  max-height: 300px;
+  border-color: #cbd5e1;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.filter-dropdown .Select-menu {
+  max-height: 298px;
+}
+
+.filter-dropdown .Select-option {
+  min-height: 44px;
+  padding: 12px 14px;
+  line-height: 20px;
+  white-space: normal;
+}
+
+.filter-dropdown .Select-option.is-disabled {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.filter-message {
+  min-height: 34px;
+  margin: 8px 0 18px;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.track-meta {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.76rem;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.table-wrap td:first-child,
+.table-wrap th:first-child {
+  min-width: 260px;
+  max-width: 340px;
+  overflow-wrap: anywhere;
+}
+
+.heatmap-panel {
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .filter-dropdown .Select-menu-outer {
+    max-height: 250px;
+  }
+
+  .table-wrap td:first-child,
+  .table-wrap th:first-child {
+    min-width: 220px;
+  }
+}

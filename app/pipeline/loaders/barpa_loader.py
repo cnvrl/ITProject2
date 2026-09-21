@@ -1,3 +1,14 @@
+"""
+barpa_loader.py
+
+The BARPA loader is responsible for loading cyclone track data from BARPA/CCAM CSV files into TCRecord objects. It handles parsing of timestamps, grouping of points into tracks and segments, and conversion of wind speed units. The loader also derives metadata such as model, tracker, season, and segment number for each track.
+
+Class: BARPALoader(BaseTCLoader)
+    - Inherits from BaseTCLoader and implements the load() method to read BARPA/CCAM CSV files.
+    - Parses timestamps, normalizes row data, and converts values to appropriate types.
+    - Groups points by model, tracker, season, and raw track ID, and segments tracks based on time gaps.
+    - Returns a list of TCRecord objects representing the cyclone tracks.
+"""
 from __future__ import annotations
 
 import csv

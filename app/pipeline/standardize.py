@@ -1,3 +1,26 @@
+"""
+
+standardize.py
+The standardize_records function takes a list of TCRecord objects and standardizes their attributes based on the source file name and other context. It ensures that required fields are populated, sorts the points in each record by time, and recalculates dependent summary fields. The function returns a list of standardized TCRecord objects.
+
+function: standardize_records(records, source_file=None)
+    - Takes an iterable of TCRecord objects and an optional source file path.
+    - Standardizes the attributes of each TCRecord based on the source file name and other context.
+    - Ensures that required fields (region, scenario, model, tracker) are populated.
+    - Sorts the points in each record by time.
+    - Re-validates each record to recalculate dependent summary fields.
+    - Returns a list of standardized TCRecord objects.
+
+Parameters:
+    - records: An iterable of TCRecord objects to be standardized.
+    - source_file: An optional string or Path representing the source file path.
+    - soure_path: A Path object representing the source file path, derived from source_file if provided.
+    - standardised: A list to hold the standardized TCRecord objects.
+
+Returns:
+    - standardised: A list of standardized TCRecord objects with updated attributes and recalculated summary fields.
+
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,13 +31,7 @@ from app.models.tc_record import TCRecord
 
 def standardize_records(
     records: Iterable[TCRecord],
-    source_file: str | Path | None = None,
-) -> list[TCRecord]:
-    """
-    Apply safe cross-dataset defaults without discarding data.
-
-    Loaders retain precedence: only missing fields are populated here.
-    """
+    source_file: str | Path | None = None,) -> list[TCRecord]:
     source_path = Path(source_file) if source_file else None
     standardised: list[TCRecord] = []
 

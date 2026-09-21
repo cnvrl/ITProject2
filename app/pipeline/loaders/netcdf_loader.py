@@ -1,3 +1,15 @@
+"""
+
+netcdf_loader.py
+The NetCDFLoader class is responsible for loading cyclone track data from NetCDF files into TCRecord objects. It handles parsing of timestamps, grouping of points into tracks, and conversion of wind speed and pressure units. The loader also derives metadata such as model, tracker, season, and segment number for each track.
+
+Class: NetCDFLoader(BaseTCLoader)
+    - Inherits from BaseTCLoader and implements the load() method to read NetCDF files.
+    - Parses timestamps, normalizes row data, and converts values to appropriate types.
+    - Groups points by track ID and segments tracks based on time gaps.
+    - Returns a list of TCRecord objects representing the cyclone tracks.
+
+"""
 from __future__ import annotations
 
 import math

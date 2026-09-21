@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 pydantic
+pydantic-settings
 pandas
 numpy
 xarray
@@ -18,13 +19,7 @@ aiosqlite
 orjson
 pytest
 httpx
-plotly 
-dash==3.2.0
 plotly==6.3.0
+dash==3.2.0
 gunicorn==23.0.0
-# For Local run
-fastapi
-uvicorn 
-pydantic
-plotly
-dash
+matplotlib
