@@ -1,115 +1,300 @@
-"""
-ingest.py
-The Ingestor class is responsible for determining the appropriate loader for a given dataset file and loading the cyclone track data into TCRecord objects. It supports various dataset types and file formats, including CSV and NetCDF. The ingestor also standardizes the loaded records and validates them before returning the final result.
-
-class: Ingestor
-    - Determines the appropriate loader based on the dataset type or file name.
-    - Loads the cyclone track data using the selected loader.
-    - Standardizes the loaded records and validates them.
-    - Returns a dictionary containing the dataset ID, source file path, loader name, loaded records, and validation results.
-    - Raises FileNotFoundError if the source file does not exist.
-    - Raises ValueError if the loader cannot be determined for the given source file.
-
-    General Usage:
-        ingestor = Ingestor()
-        result = ingestor.ingest(source_file="path/to/dataset.csv", dataset_type="barpa", dataset_id="my_dataset")
-        records = result["records"]
-        validation = result["validation"]
-    
-    Returns:
-        A dictionary containing:
-            - dataset_id: The ID of the dataset.
-            - source_file: The path to the source file.
-            - loader: The name of the loader class used.
-            - records: A list of TCRecord objects representing the cyclone tracks.
-            - validation: A dictionary containing validation results for the loaded records.
-    
-        
-
-"""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping, Optional, Protocol
 
-from app.pipeline.loaders.barpa_loader import BARPALoader
-from app.pipeline.loaders.besttrack_loader import BestTrackLoader
-from app.pipeline.loaders.ccam_loader import CCAMLoader
-from app.pipeline.loaders.cdd_tracker_loader import CDDTrackerLoader
-from app.pipeline.loaders.netcdf_loader import NetCDFLoader
-from app.pipeline.loaders.te_tracker_loader import TETrackerLoader
+from app.config import (
+    DATASET_TYPE_BY_FILE,
+    SUPPORTED_DATASET_TYPES,
+)
+from app.models.tc_record import TCRecord
 from app.pipeline.standardize import standardize_records
-from app.pipeline.validators import validate_records
+from app.pipeline.validators import (
+    ValidationReport,
+    validate_records,
+)
+
+
+class DatasetLoader(Protocol):
+    """Interface implemented by dataset-specific loaders."""
+
+    dataset_type: str
+
+    def supports(
+        self,
+        path: Path,
+        dataset_type: Optional[str] = None,
+    ) -> bool:
+        """Return whether this loader supports the supplied file."""
+        ...
+
+    def load(self, path: Path) -> object:
+        """Load records from the supplied file."""
+        ...
+
+
+@dataclass
+class IngestionResult:
+    """Result returned after loading, standardising, and validating a file."""
+
+    source: Path
+    dataset_type: str
+    records: list[TCRecord]
+    validation: ValidationReport
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_valid(self) -> bool:
+        return self.validation.is_valid
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source": str(self.source),
+            "dataset_type": self.dataset_type,
+            "records": self.records,
+            "validation": self.validation,
+            "metadata": dict(self.metadata),
+            "is_valid": self.is_valid,
+        }
+
+    def get(
+        self,
+        key: str,
+        default: object = None,
+    ) -> object:
+        """Provide compatibility with code expecting dictionary results."""
+
+        return self.to_dict().get(key, default)
+
+    def __getitem__(self, key: str) -> object:
+        return self.to_dict()[key]
+
+
+def infer_dataset_type(path: str | Path) -> Optional[str]:
+    """Infer the dataset type from a known filename or filename prefix."""
+
+    source_path = Path(path)
+    filename = source_path.name.lower()
+
+    configured_type = DATASET_TYPE_BY_FILE.get(filename)
+
+    if configured_type:
+        return configured_type
+
+    if filename.startswith("barpa"):
+        return "barpa"
+
+    if filename.startswith("ccam"):
+        return "ccam"
+
+    return None
+
+
+def build_default_loaders() -> list[DatasetLoader]:
+    """Create the BARPA and CCAM production loaders."""
+
+    from app.pipeline.loaders import create_default_loaders
+
+    return create_default_loaders()
+
+
+def unpack_loader_result(
+    raw_result: object,
+) -> tuple[list[TCRecord], dict[str, Any]]:
+    """
+    Convert supported loader return types into records and metadata.
+
+    The clean loaders return LoaderResult objects, but Mapping and iterable
+    results remain supported for compatibility.
+    """
+
+    if hasattr(raw_result, "records"):
+        records = list(
+            getattr(raw_result, "records")
+        )
+
+        metadata = dict(
+            getattr(
+                raw_result,
+                "metadata",
+                {},
+            )
+            or {}
+        )
+
+        return records, metadata
+
+    if isinstance(raw_result, Mapping):
+        records = list(
+            raw_result.get(
+                "records",
+                [],
+            )
+        )
+
+        metadata = dict(
+            raw_result.get(
+                "metadata",
+                {},
+            )
+            or {}
+        )
+
+        return records, metadata
+
+    if isinstance(raw_result, Iterable):
+        return list(raw_result), {}
+
+    raise TypeError(
+        "The selected loader returned an unsupported result type: "
+        f"{type(raw_result).__name__}"
+    )
 
 
 class Ingestor:
-    def __init__(self) -> None:
-        self.loader_map = {
-            "barpa": BARPALoader,
-            "ccam": CCAMLoader,
-            "cdd": CDDTrackerLoader,
-            "te": TETrackerLoader,
-            "besttrack": BestTrackLoader,
-            "netcdf": NetCDFLoader,
-        }
+    """
+    Coordinate loader selection, standardisation, and validation.
 
-    def choose_loader(
+    Runtime flow:
+
+        source file
+        -> dataset loader
+        -> TCRecord objects
+        -> standardisation
+        -> validation
+        -> IngestionResult
+    """
+
+    def __init__(
         self,
-        source_file: str | Path,
-        dataset_type: str | None = None,
-    ):
-        path = Path(source_file)
-        filename = path.name.lower()
-        suffix = path.suffix.lower()
-        key = (dataset_type or "").strip().lower()
+        loaders: Optional[list[DatasetLoader]] = None,
+        strict_validation: bool = False,
+    ) -> None:
+        self._loaders = (
+            list(loaders)
+            if loaders is not None
+            else build_default_loaders()
+        )
 
-        if key in self.loader_map:
-            return self.loader_map[key]
+        self.strict_validation = strict_validation
 
-        if suffix in {".nc", ".nc4", ".cdf"}:
-            return NetCDFLoader
-        if "ibtracs" in filename or "besttrack" in filename:
-            return BestTrackLoader
+    @property
+    def loaders(self) -> tuple[DatasetLoader, ...]:
+        """Return the registered loaders as an immutable tuple."""
 
-        if "barpa" in filename:
-            return BARPALoader
-        if "ccam" in filename:
-            return CCAMLoader
-        if "cdd" in filename:
-            return CDDTrackerLoader
-        if "te" in filename:
-            return TETrackerLoader
+        return tuple(self._loaders)
 
-        raise ValueError(f"Unable to determine a loader for {path.name}")
+    def register_loader(
+        self,
+        loader: DatasetLoader,
+    ) -> None:
+        """Register an additional dataset loader."""
+
+        self._loaders.append(loader)
+
+    def select_loader(
+        self,
+        path: Path,
+        dataset_type: str,
+    ) -> DatasetLoader:
+        """Select the first loader supporting the file and dataset type."""
+
+        for loader in self._loaders:
+            if loader.supports(
+                path,
+                dataset_type,
+            ):
+                return loader
+
+        registered = ", ".join(
+            loader.__class__.__name__
+            for loader in self._loaders
+        )
+
+        raise ValueError(
+            f"No loader supports {path.name!r} as dataset type "
+            f"{dataset_type!r}. Registered loaders: {registered or 'none'}."
+        )
 
     def ingest(
         self,
-        source_file: str | Path,
-        dataset_type: str | None = None,
-        **context: Any,
-    ) -> dict:
-        path = Path(source_file)
+        source: str | Path,
+        dataset_type: Optional[str] = None,
+    ) -> IngestionResult:
+        """Load, standardise, and validate one dataset file."""
+
+        path = Path(source).expanduser().resolve()
 
         if not path.exists():
-            raise FileNotFoundError(f"Dataset file not found: {path}")
+            raise FileNotFoundError(
+                f"Dataset file does not exist: {path}"
+            )
 
-        loader_class = self.choose_loader(path, dataset_type)
-        dataset_id = context.pop("dataset_id", path.stem)
+        if not path.is_file():
+            raise ValueError(
+                f"Dataset source is not a file: {path}"
+            )
 
-        loader = loader_class(
-            dataset_id=dataset_id,
-            source_file=path,
-            **context,
+        resolved_type = (
+            str(dataset_type).strip().lower()
+            if dataset_type
+            else infer_dataset_type(path)
         )
 
-        records = loader.load()
-        records = standardize_records(records, source_file=path)
-        validation = validate_records(records)
+        if not resolved_type:
+            raise ValueError(
+                f"Could not infer the dataset type for {path.name!r}."
+            )
 
-        return {
-            "dataset_id": dataset_id,
-            "source_file": str(path),
-            "loader": loader_class.__name__,
-            "records": records,
-            "validation": validation,
+        if resolved_type not in SUPPORTED_DATASET_TYPES:
+            raise ValueError(
+                f"Unsupported dataset type {resolved_type!r}. "
+                f"Supported types: {sorted(SUPPORTED_DATASET_TYPES)}"
+            )
+
+        loader = self.select_loader(
+            path,
+            resolved_type,
+        )
+
+        raw_result = loader.load(path)
+
+        raw_records, loader_metadata = (
+            unpack_loader_result(raw_result)
+        )
+
+        for index, record in enumerate(raw_records):
+            if not isinstance(record, TCRecord):
+                raise TypeError(
+                    f"{loader.__class__.__name__} returned an invalid "
+                    f"record at position {index}: "
+                    f"{type(record).__name__}. Expected TCRecord."
+                )
+
+        standard_records = standardize_records(
+            raw_records
+        )
+
+        validation = validate_records(
+            standard_records,
+            strict=self.strict_validation,
+        )
+
+        metadata = {
+            "loader": loader.__class__.__name__,
+            "source_filename": path.name,
+            "source_path": str(path),
+            "record_count": len(standard_records),
+            "validation_error_count": validation.error_count,
+            "validation_warning_count": validation.warning_count,
+            **loader_metadata,
         }
+
+        return IngestionResult(
+            source=path,
+            dataset_type=resolved_type,
+            records=standard_records,
+            validation=validation,
+            metadata=metadata,
+        )

@@ -1,3 +1,9 @@
-from .tc_record import TCPoint, TCRecord
+"""Domain models used throughout TC Explorer."""
 
-__all__ = ["TCPoint", "TCRecord"]
+from app.models.tc_record import TCPoint, TCRecord, TrackPoint
+
+__all__ = [
+    "TCPoint",
+    "TCRecord",
+    "TrackPoint",
+]
