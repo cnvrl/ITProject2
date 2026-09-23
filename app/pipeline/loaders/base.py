@@ -83,7 +83,8 @@ def safe_float(value: object) -> Optional[float]:
         return None
 
     try:
-        return float(value)
+        val = float(value)
+        return val if not pd.isna(val) else None
     except (TypeError, ValueError):
         return None
 
@@ -93,7 +94,8 @@ def safe_int(value: object) -> Optional[int]:
         return None
 
     try:
-        return int(float(value))
+        val = float(value)
+        return int(val) if not pd.isna(val) else None
     except (TypeError, ValueError):
         return None
 
@@ -155,6 +157,31 @@ def source_scenario_from_filename(path: Path) -> str:
     return "unknown"
 
 
+def wind_speed_to_category(wind_speed_kmh: Optional[float]) -> Optional[int]:
+    """Derive Australian Cyclone Scale category (0-5) from wind speed in km/h."""
+    if wind_speed_kmh is None or pd.isna(wind_speed_kmh):
+        return None
+
+    try:
+        speed = float(wind_speed_kmh)
+    except (TypeError, ValueError):
+        return None
+
+    if speed < 0:
+        return None
+    if speed >= 200:
+        return 5
+    if speed >= 160:
+        return 4
+    if speed >= 118:
+        return 3
+    if speed >= 89:
+        return 2
+    if speed >= 63:
+        return 1
+    return 0
+
+
 class BaseCSVTrackLoader(ABC):
     """
     Shared loader for BARPA and CCAM cyclone-track CSV files.
@@ -179,137 +206,18 @@ class BaseCSVTrackLoader(ABC):
     filename_tokens: tuple[str, ...] = ()
 
     column_aliases: Mapping[str, tuple[str, ...]] = {
-        "track_id": (
-            "track_id",
-            "trackid",
-            "track",
-            "tc_id",
-            "tcid",
-            "cyclone_id",
-            "cycloneid",
-            "storm_id",
-            "stormid",
-            "event_id",
-        ),
-        "driving_model": (
-            "driving_model",
-            "source_model",
-            "source_model_value",
-            "climate_model",
-            "global_model",
-            "gcm",
-            "model",
-        ),
-        "tracker": (
-            "tracker",
-            "tracking_algorithm",
-            "track_algorithm",
-            "tracker_name",
-            "algorithm",
-        ),
-        "season": (
-            "season",
-            "season_year",
-            "storm_season",
-            "cyclone_season",
-            "year",
-        ),
-        "year": (
-            "year",
-            "calendar_year",
-        ),
-        "segment": (
-            "segment",
-            "segment_id",
-            "segment_number",
-            "track_segment",
-        ),
-        "timestamp": (
-            "timestamp",
-            "datetime",
-            "date_time",
-            "date",
-            "time",
-            "valid_time",
-            "observation_time",
-            "iso_time",
-        ),
-        "step": (
-            "step",
-            "time_step",
-            "timestep",
-            "track_step",
-            "point",
-            "point_index",
-            "index",
-        ),
-        "latitude": (
-            "latitude",
-            "lat",
-            "y",
-        ),
-        "longitude": (
-            "longitude",
-            "lon",
-            "long",
-            "lng",
-            "x",
-        ),
-        "wind_speed": (
-            "wind_speed",
-            "windspeed",
-            "wind",
-            "vmax",
-            "max_wind",
-            "maximum_wind",
-            "max_wind_speed",
-            "wind_kmh",
-            "wind_speed_kmh",
-            "wind_ms",
-            "wind_speed_ms",
-            "wind_mps",
-            "wind_speed_mps",
-            "wind_kt",
-            "wind_speed_kt",
-            "wind_knots",
-        ),
-        "pressure": (
-            "pressure",
-            "central_pressure",
-            "minimum_pressure",
-            "min_pressure",
-            "mslp",
-            "slp",
-            "pressure_hpa",
-            "pressure_pa",
-        ),
-        "category": (
-            "category",
-            "intensity_category",
-            "cyclone_category",
-            "australian_category",
-            "max_category",
-        ),
-        "scenario": (
-            "scenario",
-            "experiment",
-            "experiment_id",
-            "climate_scenario",
-        ),
-        "region": (
-            "region",
-            "basin",
-            "domain",
-            "area",
-        ),
-        "landfall": (
-            "landfall",
-            "made_landfall",
-            "is_landfall",
-            "landfall_flag",
-        ),
+        "track_id": ("track_id",),
+        "driving_model": ("model", "driving_model"),
+        "tracker": ("tracker",),
+        "season": ("season",),
+        "year": ("year",),
+        "timestamp": ("time", "timestamp"),
+        "latitude": ("lat", "latitude"),
+        "longitude": ("lon", "longitude"),
+        "wind_speed": ("wspd", "wind_speed"),
+        "pressure": ("pres", "pressure"),
     }
-
+    
     required_fields = (
         "track_id",
         "latitude",
@@ -737,6 +645,7 @@ class BaseCSVTrackLoader(ABC):
                 ],
                 errors="coerce",
             )
+            raw_wind = raw_wind.mask(raw_wind < 0, pd.NA)
 
             wind_unit = self._detect_wind_unit(
                 wind_column,
@@ -775,82 +684,15 @@ class BaseCSVTrackLoader(ABC):
         else:
             prepared["pressure"] = pd.NA
 
-        category_column = columns.get(
-            "category"
-        )
-
-        if category_column:
-            prepared["category"] = (
-                frame.loc[
-                    prepared.index,
-                    category_column,
-                ]
-                .astype(str)
-                .str.extract(
-                    r"(\d+)",
-                    expand=False,
-                )
-            )
-
-            prepared["category"] = pd.to_numeric(
-                prepared["category"],
-                errors="coerce",
-            )
-        else:
-            prepared["category"] = pd.NA
-
-        scenario_column = columns.get(
-            "scenario"
-        )
+        prepared["category"] = prepared["wind_speed"].map(wind_speed_to_category)
 
         default_scenario = (
             source_scenario_from_filename(path)
         )
 
-        if scenario_column:
-            prepared["scenario"] = frame.loc[
-                prepared.index,
-                scenario_column,
-            ].map(
-                lambda value: safe_text(
-                    value,
-                    default_scenario,
-                )
-            )
-        else:
-            prepared["scenario"] = (
-                default_scenario
-            )
-
-        region_column = columns.get("region")
-
-        if region_column:
-            prepared["region"] = frame.loc[
-                prepared.index,
-                region_column,
-            ].map(
-                lambda value: safe_text(
-                    value,
-                    self.default_region,
-                )
-            )
-        else:
-            prepared["region"] = (
-                self.default_region
-            )
-
-        landfall_column = columns.get(
-            "landfall"
-        )
-
-        if landfall_column:
-            prepared["landfall"] = frame.loc[
-                prepared.index,
-                landfall_column,
-            ].map(safe_bool)
-        else:
-            prepared["landfall"] = False
-
+        prepared["scenario"] = default_scenario
+        prepared["region"] = self.default_region
+        prepared["landfall"] = False
         prepared["_wind_source_unit"] = wind_unit
 
         return prepared.reset_index(drop=True)
@@ -1127,58 +969,31 @@ class BaseCSVTrackLoader(ABC):
         if configured != "auto":
             return configured
 
-        normalised_name = normalise_column_name(
-            column_name
-        )
+        normalised_name = normalise_column_name(column_name)
 
-        if any(
-            token in normalised_name
-            for token in (
-                "kmh",
-                "km_h",
-                "kph",
-            )
-        ):
+        if any(token in normalised_name for token in ("kmh", "km_h", "kph")):
             return "km/h"
 
-        if any(
-            token in normalised_name
-            for token in (
-                "mps",
-                "m_s",
-                "_ms",
-            )
-        ):
+        if any(token in normalised_name for token in ("mps", "m_s", "_ms", "ms")):
             return "m/s"
 
-        if any(
-            token in normalised_name
-            for token in (
-                "knot",
-                "_kt",
-                "knots",
-            )
-        ):
+        if any(token in normalised_name for token in ("knot", "_kt", "knots", "kts")):
             return "knots"
 
-        valid_values = pd.to_numeric(
-            values,
-            errors="coerce",
-        ).dropna()
+        valid_values = pd.to_numeric(values, errors="coerce").dropna()
 
         if valid_values.empty:
             return "km/h"
 
-        percentile_99 = float(
-            valid_values.quantile(0.99)
-        )
+        mean_value = float(valid_values.mean())
+        percentile_99 = float(valid_values.quantile(0.99))
 
-        # Tropical cyclone winds expressed in m/s are normally much smaller
-        # numerically than the equivalent km/h values.
-        if percentile_99 <= 100:
-            return "m/s"
+        # In m/s: mean is ~20-30 m/s, p99 is ~45-70 m/s.
+        # In km/h: mean is >45 km/h, p99 is >90 km/h.
+        if mean_value > 45.0 or percentile_99 > 90.0:
+            return "km/h"
 
-        return "km/h"
+        return "m/s"
 
     def _convert_wind_to_kmh(
         self,

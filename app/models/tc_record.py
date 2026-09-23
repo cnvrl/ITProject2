@@ -7,7 +7,6 @@ from typing import Any, Mapping, Optional
 
 def coerce_datetime(value: object) -> Optional[datetime]:
     """Convert common timestamp values to datetime."""
-
     if value is None or value == "":
         return None
 
@@ -15,7 +14,6 @@ def coerce_datetime(value: object) -> Optional[datetime]:
         return value
 
     text = str(value).strip()
-
     if not text:
         return None
 
@@ -36,10 +34,7 @@ def coerce_datetime(value: object) -> Optional[datetime]:
 
     for timestamp_format in formats:
         try:
-            return datetime.strptime(
-                text,
-                timestamp_format,
-            )
+            return datetime.strptime(text, timestamp_format)
         except ValueError:
             continue
 
@@ -66,6 +61,11 @@ def optional_int(value: object) -> Optional[int]:
         return None
 
 
+def is_australia_landfall(lat: float, lon: float) -> bool:
+    """Check if latitude/longitude falls within Australian land boundaries."""
+    return (-44.0 <= lat <= -10.5) and (113.0 <= lon <= 153.8)
+
+
 @dataclass
 class TrackPoint:
     """One observation along a tropical cyclone track."""
@@ -80,95 +80,49 @@ class TrackPoint:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_mapping(
-        cls,
-        values: Mapping[str, Any],
-    ) -> "TrackPoint":
-        latitude = (
-            values.get("lat")
-            if values.get("lat") is not None
-            else values.get("latitude")
-        )
+    def from_mapping(cls, values: Mapping[str, Any]) -> TrackPoint:
+        clean_map = {
+            str(k).strip().lower(): v
+            for k, v in values.items()
+            if v is not None and str(v).strip() != "" and str(v).strip().lower() != "nan"
+        }
 
-        longitude = (
-            values.get("lon")
-            if values.get("lon") is not None
-            else values.get("longitude")
-        )
+        latitude = clean_map.get("lat") or clean_map.get("latitude")
+        longitude = clean_map.get("lon") or clean_map.get("longitude") or clean_map.get("lng")
 
         if latitude is None or longitude is None:
-            raise ValueError(
-                "Track points require latitude and longitude."
-            )
+            raise ValueError("Track points require latitude and longitude.")
 
         timestamp = (
-            values.get("timestamp")
-            or values.get("datetime")
-            or values.get("time")
-            or values.get("date")
+            clean_map.get("timestamp")
+            or clean_map.get("datetime")
+            or clean_map.get("time")
+            or clean_map.get("date")
         )
 
-        wind_speed = (
-            values.get("wind_speed")
-            if values.get("wind_speed") is not None
-            else values.get("wind")
+        wind_speed_raw = (
+            clean_map.get("wspd")
+            or clean_map.get("wind_speed")
+            or clean_map.get("wind")
+            or clean_map.get("vmax")
         )
 
-        pressure = (
-            values.get("pressure")
-            if values.get("pressure") is not None
-            else values.get("central_pressure")
+        pressure_raw = (
+            clean_map.get("pres")
+            or clean_map.get("pressure")
+            or clean_map.get("central_pressure")
         )
-
-        known_fields = {
-            "lat",
-            "latitude",
-            "lon",
-            "longitude",
-            "timestamp",
-            "datetime",
-            "time",
-            "date",
-            "wind_speed",
-            "wind",
-            "pressure",
-            "central_pressure",
-            "category",
-            "step",
-        }
-
-        metadata = {
-            key: value
-            for key, value in values.items()
-            if key not in known_fields
-        }
 
         return cls(
             lat=float(latitude),
             lon=float(longitude),
             timestamp=coerce_datetime(timestamp),
-            wind_speed=optional_float(wind_speed),
-            pressure=optional_float(pressure),
-            category=optional_int(values.get("category")),
-            step=optional_int(values.get("step")),
-            metadata=metadata,
+            wind_speed=optional_float(wind_speed_raw),
+            pressure=optional_float(pressure_raw),
+            category=optional_int(clean_map.get("category")),
+            step=optional_int(clean_map.get("step")),
+            metadata=dict(values),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "lat": self.lat,
-            "lon": self.lon,
-            "timestamp": (
-                self.timestamp.isoformat()
-                if self.timestamp
-                else None
-            ),
-            "wind_speed": self.wind_speed,
-            "pressure": self.pressure,
-            "category": self.category,
-            "step": self.step,
-            "metadata": dict(self.metadata),
-        }
 
 
 TCPoint = TrackPoint
@@ -176,12 +130,7 @@ TCPoint = TrackPoint
 
 @dataclass
 class TCRecord:
-    """
-    Canonical tropical cyclone domain record.
-
-    `model` stores the regional dataset family, normally BARPA or CCAM.
-    `driving_model` stores ACCESS-CM2, ERA5, CESM2, and similar model names.
-    """
+    """Canonical tropical cyclone domain record."""
 
     dataset_id: str
     track_id: str
@@ -210,8 +159,6 @@ class TCRecord:
 
     @property
     def dataset(self) -> str:
-        """Return the regional dataset family."""
-
         return str(
             self.model
             or self.metadata.get("dataset")
@@ -221,8 +168,6 @@ class TCRecord:
 
     @property
     def source_model(self) -> str:
-        """Return the driving climate model."""
-
         return str(
             self.driving_model
             or self.metadata.get("source_model_value")
@@ -232,31 +177,13 @@ class TCRecord:
 
     @property
     def identity(self) -> tuple[str, str, str, int, str]:
-        """Composite identity used to prevent track collisions."""
-
         return (
             self.dataset,
             self.source_model,
             str(self.tracker).strip().upper(),
             int(self.season or self.year or 0),
-            str(
-                self.metadata.get("raw_track_id")
-                or self.track_id
-            ).strip(),
+            str(self.metadata.get("raw_track_id") or self.track_id).strip(),
         )
-
-    @property
-    def uid(self) -> str:
-        """Stable dashboard identifier."""
-
-        return "|".join(
-            str(value)
-            for value in self.identity
-        )
-
-    @property
-    def genesis_point(self) -> Optional[TrackPoint]:
-        return self.points[0] if self.points else None
 
     @property
     def final_point(self) -> Optional[TrackPoint]:
@@ -264,117 +191,55 @@ class TCRecord:
 
     @property
     def display_name(self) -> str:
-        raw_track_id = (
-            self.metadata.get("raw_track_id")
-            or self.track_id
-        )
-
+        raw_track_id = self.metadata.get("raw_track_id") or self.track_id
         display_year = self.season or self.year or "unknown"
-
         return f"Cyclone {raw_track_id} ({display_year})"
 
     def refresh_derived_fields(self) -> None:
-        """Recalculate metrics that can be derived from track points."""
-
         if not self.points:
             self.max_category = int(self.max_category or 0)
-            self.max_wind_speed = float(
-                self.max_wind_speed or 0.0
-            )
-            self.lifetime_hours = float(
-                self.lifetime_hours or 0.0
-            )
+            self.max_wind_speed = float(self.max_wind_speed or 0.0)
+            self.lifetime_hours = float(self.lifetime_hours or 0.0)
             return
 
         genesis = self.points[0]
-
         self.genesis_lat = genesis.lat
         self.genesis_lon = genesis.lon
         self.genesis_time = genesis.timestamp
 
-        categories = [
-            point.category
-            for point in self.points
-            if point.category is not None
-        ]
+        # Extract max wind speed directly from points (already in km/h)
+        wind_speeds = [p.wind_speed for p in self.points if p.wind_speed is not None]
+        self.max_wind_speed = max(wind_speeds) if wind_speeds else 0.0
 
-        wind_speeds = [
-            point.wind_speed
-            for point in self.points
-            if point.wind_speed is not None
-        ]
-
-        if categories:
-            self.max_category = max(categories)
+        # Australian TC Category scale (km/h)
+        wind = self.max_wind_speed
+        if wind >= 200:
+            self.max_category = 5
+        elif wind >= 160:
+            self.max_category = 4
+        elif wind >= 118:
+            self.max_category = 3
+        elif wind >= 89:
+            self.max_category = 2
+        elif wind >= 63:
+            self.max_category = 1
         else:
-            self.max_category = int(
-                self.max_category or 0
-            )
+            self.max_category = 0
 
-        if wind_speeds:
-            self.max_wind_speed = max(wind_speeds)
-        else:
-            self.max_wind_speed = float(
-                self.max_wind_speed or 0.0
-            )
-
-        timestamps = sorted(
-            point.timestamp
-            for point in self.points
-            if point.timestamp is not None
+        self.landfall = any(
+            bool(p.metadata.get("landfall", False)) or is_australia_landfall(p.lat, p.lon)
+            for p in self.points
         )
 
+        timestamps = sorted(p.timestamp for p in self.points if p.timestamp is not None)
         if len(timestamps) >= 2:
             duration = timestamps[-1] - timestamps[0]
-
-            self.lifetime_hours = (
-                duration.total_seconds() / 3600.0
-            )
+            self.lifetime_hours = duration.total_seconds() / 3600.0
         else:
-            self.lifetime_hours = float(
-                self.lifetime_hours or 0.0
-            )
+            self.lifetime_hours = float(self.lifetime_hours or 0.0)
 
         if self.year is None and self.genesis_time:
             self.year = self.genesis_time.year
 
         if self.season is None:
             self.season = self.year
-
-    def to_dict(
-        self,
-        include_points: bool = True,
-    ) -> dict[str, Any]:
-        output = {
-            "dataset_id": self.dataset_id,
-            "track_id": self.track_id,
-            "uid": self.uid,
-            "model": self.model,
-            "dataset": self.dataset,
-            "driving_model": self.source_model,
-            "tracker": self.tracker,
-            "scenario": self.scenario,
-            "region": self.region,
-            "season": self.season,
-            "year": self.year,
-            "max_category": self.max_category,
-            "max_wind_speed": self.max_wind_speed,
-            "lifetime_hours": self.lifetime_hours,
-            "landfall": self.landfall,
-            "genesis_lat": self.genesis_lat,
-            "genesis_lon": self.genesis_lon,
-            "genesis_time": (
-                self.genesis_time.isoformat()
-                if self.genesis_time
-                else None
-            ),
-            "metadata": dict(self.metadata),
-        }
-
-        if include_points:
-            output["points"] = [
-                point.to_dict()
-                for point in self.points
-            ]
-
-        return output

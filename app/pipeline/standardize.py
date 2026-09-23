@@ -25,7 +25,6 @@ def normalise_text(
 
 def normalise_longitude(longitude: float) -> float:
     """Normalise longitude to the range -180 to 180."""
-
     value = float(longitude)
 
     while value > 180:
@@ -40,12 +39,15 @@ def normalise_longitude(longitude: float) -> float:
 def category_from_wind_kmh(
     wind_speed: Optional[float],
 ) -> int:
-    """Assign an Australian tropical cyclone category from wind in km/h."""
-
+    """Assign an Australian tropical cyclone category from wind speed."""
     if wind_speed is None:
         return 0
 
     wind = float(wind_speed)
+
+    # Convert m/s to km/h if value is in m/s (< 100 m/s)
+    if 0 < wind < 100:
+        wind = wind * 3.6
 
     if wind >= 200:
         return 5
@@ -66,15 +68,6 @@ def resolve_scenario(
     season: object,
     source_scenario: object = None,
 ) -> str:
-    """
-    Correct historical/future scenario labels.
-
-    ERA5 is treated as historical/reanalysis data. Seasons up to and
-    including the configured historical end year are historical. Seasons
-    from the configured future start year onward are future scenario
-    records.
-    """
-
     model = normalise_text(
         driving_model,
         default="",
@@ -105,9 +98,7 @@ def standardize_point(
     standard_point = deepcopy(point)
 
     standard_point.lat = float(standard_point.lat)
-    standard_point.lon = normalise_longitude(
-        standard_point.lon
-    )
+    standard_point.lon = normalise_longitude(standard_point.lon)
 
     standard_point.step = (
         int(standard_point.step)
@@ -116,33 +107,26 @@ def standardize_point(
     )
 
     if standard_point.timestamp is not None:
-        standard_point.timestamp = coerce_datetime(
-            standard_point.timestamp
-        )
+        standard_point.timestamp = coerce_datetime(standard_point.timestamp)
 
+    # Use wind_speed directly from loader without re-converting
     if standard_point.wind_speed is not None:
-        standard_point.wind_speed = max(
-            0.0,
-            float(standard_point.wind_speed),
-        )
+        try:
+            standard_point.wind_speed = max(0.0, float(standard_point.wind_speed))
+        except (ValueError, TypeError):
+            standard_point.wind_speed = 0.0
+    else:
+        standard_point.wind_speed = 0.0
 
     if standard_point.pressure is not None:
-        standard_point.pressure = float(
-            standard_point.pressure
-        )
+        try:
+            standard_point.pressure = float(standard_point.pressure)
+        except (ValueError, TypeError):
+            standard_point.pressure = None
 
-    if standard_point.category is None:
-        standard_point.category = category_from_wind_kmh(
-            standard_point.wind_speed
-        )
-    else:
-        standard_point.category = max(
-            0,
-            min(5, int(standard_point.category)),
-        )
+    standard_point.category = category_from_wind_kmh(standard_point.wind_speed)
 
     return standard_point
-
 
 def _point_sort_key(
     point: TrackPoint,
@@ -164,8 +148,6 @@ def _point_sort_key(
 def standardize_record(
     record: TCRecord,
 ) -> TCRecord:
-    """Return a normalised copy of one cyclone record."""
-
     standard_record = deepcopy(record)
 
     standard_record.dataset_id = normalise_text(
@@ -262,8 +244,6 @@ def standardize_record(
 def standardize_records(
     records: Iterable[TCRecord],
 ) -> list[TCRecord]:
-    """Standardise a collection of cyclone records."""
-
     return [
         standardize_record(record)
         for record in records

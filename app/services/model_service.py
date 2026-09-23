@@ -77,24 +77,10 @@ def model_options(
     selected_elsewhere: set[str] | None = None,
     current_value: str | None = None,
 ) -> list[dict]:
-    selected_elsewhere = (
-        selected_elsewhere or set()
-    )
+    selected_elsewhere = selected_elsewhere or set()
 
-    configured = set(
-        configured_models(
-            dataset,
-            tracker,
-        )
-    )
-
-    present = set(
-        loaded_models(
-            tracks,
-            dataset,
-            tracker,
-        )
-    )
+    configured = set(configured_models(dataset, tracker))
+    present = set(loaded_models(tracks, dataset, tracker))
 
     all_models = list(
         dict.fromkeys(
@@ -104,7 +90,8 @@ def model_options(
         )
     )
 
-    result: list[dict] = []
+    available_list: list[dict] = []
+    unavailable_list: list[dict] = []
 
     for model in all_models:
         guide_number = MODEL_NUMBER_GUIDE.get(
@@ -115,40 +102,22 @@ def model_options(
             )
         )
 
-        prefix = (
-            f"{guide_number}. "
-            if guide_number is not None
-            else ""
-        )
+        prefix = f"{guide_number}. " if guide_number is not None else ""
+        valid = (model in configured) and (model in present)
+        duplicate = (model in selected_elsewhere) and (model != current_value)
 
-        valid = (
-            model in configured
-            and model in present
-        )
-
-        duplicate = (
-            model in selected_elsewhere
-            and model != current_value
-        )
-
-        if model not in configured:
-            label = (
-                f"{prefix}{model} — unavailable for "
-                f"{dataset} + {tracker}"
-            )
-        elif model not in present:
-            label = (
-                f"{prefix}{model} — not found in data"
-            )
-        else:
-            label = f"{prefix}{model}"
-
-        result.append(
-            {
-                "label": label,
+        if valid:
+            available_list.append({
+                "label": f"{prefix}{model}",
                 "value": model,
-                "disabled": not valid or duplicate,
-            }
-        )
+                "disabled": duplicate,
+            })
+        else:
+            unavailable_list.append({
+                "label": f"{prefix}{model} (Unavailable)",
+                "value": model,
+                "disabled": True,
+            })
 
-    return result
+    # Available models first, unavailable grouped cleanly at the bottom
+    return available_list + unavailable_list

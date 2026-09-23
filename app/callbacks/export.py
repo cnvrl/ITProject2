@@ -9,13 +9,11 @@ from dash import (
     no_update,
 )
 
-from app.services.dashboard_data_service import (
-    DashboardData,
-)
+from app.services.analysis_service import comparison_summary
+from app.services.dashboard_data_service import DashboardData
 from app.services.export_service import (
     filtered_export_frame,
     interpretation_report,
-    summary_export_frame,
 )
 
 
@@ -63,7 +61,7 @@ def register_export_callbacks(
         if tracks.empty:
             return no_update
 
-        frame = summary_export_frame(tracks)
+        frame = comparison_summary(tracks)
 
         return dcc.send_data_frame(
             frame.to_csv,

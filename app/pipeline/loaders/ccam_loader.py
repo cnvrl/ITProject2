@@ -13,6 +13,15 @@ class CCAMLoader(BaseCSVTrackLoader):
 
     dataset_type = "ccam"
     dataset_label = "CCAM"
-    filename_tokens = (
-        "ccam",
-    )
+    filename_tokens = ("ccam",)
+
+    def __init__(
+        self,
+        *,
+        default_region: str = "Australia",
+        default_wind_unit: str = "m/s",  # Explicitly set CCAM raw unit to m/s
+    ) -> None:
+        super().__init__(
+            default_region=default_region,
+            default_wind_unit=default_wind_unit,
+        )

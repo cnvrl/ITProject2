@@ -21,20 +21,17 @@ from app.services.analysis_service import (
     strongest_tracks,
     summary_metrics,
 )
-from app.services.dashboard_data_service import (
-    DashboardData,
-)
+from app.services.dashboard_data_service import DashboardData
 from app.services.filter_service import (
     clean_selection,
     create_criteria,
     filter_tracks,
     points_for_tracks,
 )
-from app.services.model_service import (
-    available_models,
-)
+from app.services.model_service import available_models
 from app.ui.components import (
     density_card,
+    model_distribution_table,
     records_table,
 )
 
@@ -57,6 +54,7 @@ def register_analysis_callbacks(
         Output("frequency-chart", "figure"),
         Output("intensity-chart", "figure"),
         Output("longevity-chart", "figure"),
+        Output("model-stats-table", "children"),
         Output("density-heatmaps", "children"),
         Output("records-table", "children"),
         Output("selected-cyclone", "options"),
@@ -85,56 +83,21 @@ def register_analysis_callbacks(
         current_cyclone,
     ):
         if ctx.triggered_id == "reset-filters":
-            datasets = data.unique_values(
-                "dataset"
-            )
+            datasets = data.unique_values("dataset")
+            trackers = data.unique_values("tracker")
 
-            trackers = data.unique_values(
-                "tracker"
-            )
-
-            dataset = (
-                datasets[0]
-                if datasets
-                else None
-            )
-
-            tracker = (
-                trackers[0]
-                if trackers
-                else None
-            )
-
-            regions = data.unique_values(
-                "region"
-            )
-
-            scenarios = data.unique_values(
-                "scenario"
-            )
-
-            years = [
-                data.year_min,
-                data.year_max,
-            ]
-
+            dataset = datasets[0] if datasets else None
+            tracker = trackers[0] if trackers else None
+            regions = data.unique_values("region")
+            scenarios = data.unique_values("scenario")
+            years = [data.year_min, data.year_max]
             minimum_category = 0
-            models = available_models(
-                data.tracks,
-                dataset,
-                tracker,
-            )[
-                :SETTINGS.default_model_count
-            ]
+            models = available_models(data.tracks, dataset, tracker)[:SETTINGS.default_model_count]
 
         models = clean_selection(models)
 
         if not models:
-            models = available_models(
-                data.tracks,
-                dataset,
-                tracker,
-            )[:1]
+            models = available_models(data.tracks, dataset, tracker)[:1]
 
         criteria = create_criteria(
             dataset,
@@ -146,15 +109,10 @@ def register_analysis_callbacks(
             minimum_category,
         )
 
-        selected = filter_tracks(
-            data.tracks,
-            criteria,
-        )
+        selected = filter_tracks(data.tracks, criteria)
 
         if selected.empty:
-            empty = empty_figure(
-                "No data match the active filters."
-            )
+            empty = empty_figure("No data match the active filters.")
 
             return (
                 [],
@@ -170,67 +128,38 @@ def register_analysis_callbacks(
                 empty,
                 empty,
                 empty,
-                [
-                    html.Div(
-                        (
-                            "No cyclone observations "
-                            "match the active filters."
-                        ),
-                        className="empty-state",
-                    )
-                ],
+                html.Div("No matching data", className="empty-state"),
+                [html.Div("No cyclone observations match the active filters.", className="empty-state")],
                 records_table(selected),
                 [],
                 None,
             )
 
-        selected_points = points_for_tracks(
-            data.points,
-            selected,
-        )
-
+        selected_points = points_for_tracks(data.points, selected)
         metrics = summary_metrics(selected)
         strongest = strongest_tracks(selected)
 
         density_cards = []
-
         for model in models:
-            model_tracks = selected[
-                selected[
-                    "driving_model"
-                ].eq(model)
-            ]
-
-            model_points = points_for_tracks(
-                selected_points,
-                model_tracks,
-            )
+            model_tracks = selected[selected["driving_model"].eq(model)]
+            model_points = points_for_tracks(selected_points, model_tracks)
 
             density_cards.append(
                 density_card(
                     model,
-                    model_tracks[
-                        "track_id"
-                    ].nunique(),
+                    model_tracks["track_id"].nunique(),
                     len(model_points),
-                    density_figure(
-                        model_points,
-                        model,
-                    ),
+                    density_figure(model_points, model),
                 )
             )
 
+        # Simplified cyclone selection label format
         selector_options = [
             {
                 "label": (
-                    f"Cyclone "
-                    f"{row['raw_track_id']} "
-                    f"({row['season']}) — "
-                    f"{row['dataset']} / "
-                    f"{row['tracker']} / "
-                    f"{row['driving_model']} — "
-                    f"Category "
-                    f"{int(row['max_category'])} — "
+                    f"Cyclone {row['raw_track_id']} ({row['season']}) · "
+                    f"{row['driving_model']} · "
+                    f"Cat {int(row['max_category'])} · "
                     f"{row['max_wind_speed']:.0f} km/h"
                 ),
                 "value": row["track_id"],
@@ -238,19 +167,12 @@ def register_analysis_callbacks(
             for _, row in strongest.iterrows()
         ]
 
-        valid_values = {
-            option["value"]
-            for option in selector_options
-        }
+        valid_values = {option["value"] for option in selector_options}
 
         cyclone_value = (
             current_cyclone
             if current_cyclone in valid_values
-            else (
-                selector_options[0]["value"]
-                if selector_options
-                else None
-            )
+            else (selector_options[0]["value"] if selector_options else None)
         )
 
         model_text = ", ".join(models)
@@ -258,35 +180,18 @@ def register_analysis_callbacks(
         return (
             selected["track_id"].tolist(),
             f"{metrics.cyclone_count:,}",
-            (
-                f"{dataset} · {tracker} · "
-                f"{len(models)} model(s)"
-            ),
+            f"{dataset} · {tracker} · {len(models)} model(s)",
             f"{metrics.landfall_count:,}",
-            (
-                f"{metrics.landfall_rate:.1f}% "
-                "of selection"
-            ),
+            f"{metrics.landfall_rate:.1f}% of selection",
             f"{metrics.average_wind:.0f} km/h",
-            (
-                f"Peak "
-                f"{metrics.peak_wind:.0f} km/h"
-            ),
-            (
-                f"{metrics.average_lifetime_hours:.0f} h"
-            ),
-            (
-                f"Median "
-                f"{metrics.median_lifetime_hours:.0f} h"
-            ),
-            (
-                f"Showing {len(selected):,} records · "
-                f"{years[0]}–{years[1]} · "
-                f"{model_text}"
-            ),
+            f"Peak {metrics.peak_wind:.0f} km/h",
+            f"{metrics.average_lifetime_hours:.0f} h",
+            f"Median {metrics.median_lifetime_hours:.0f} h",
+            f"Showing {len(selected):,} records · {years[0]}–{years[1]} · {model_text}",
             frequency_figure(selected),
             intensity_figure(selected),
             longevity_figure(selected),
+            model_distribution_table(selected),
             density_cards,
             records_table(strongest),
             selector_options,

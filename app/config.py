@@ -45,7 +45,6 @@ class Settings:
     ).resolve()
 
     historical_end_year: int = 2014
-    future_start_year: int = 2015
 
     heatmap_min_longitude: float = 105.0
     heatmap_max_longitude: float = 165.0
@@ -71,12 +70,6 @@ DATASET_TYPE_BY_FILE = {
 SUPPORTED_DATASET_TYPES = {
     "barpa",
     "ccam",
-}
-
-
-SUPPORTED_TRACKERS = {
-    "CDD",
-    "TE",
 }
 
 
@@ -171,7 +164,6 @@ MODEL_COLOURS = [
 
 def ensure_runtime_directories() -> None:
     """Create application-owned output directories."""
-
     SETTINGS.output_dir.mkdir(
         parents=True,
         exist_ok=True,

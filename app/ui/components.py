@@ -34,18 +34,9 @@ def stat_card(
             ),
             html.Div(
                 [
-                    html.P(
-                        title,
-                        className="stat-title",
-                    ),
-                    html.H2(
-                        id=value_id,
-                        className="stat-value",
-                    ),
-                    html.P(
-                        id=note_id,
-                        className="stat-note",
-                    ),
+                    html.P(title, className="stat-title"),
+                    html.H2(id=value_id, className="stat-value"),
+                    html.P(id=note_id, className="stat-note"),
                 ]
             ),
         ],
@@ -59,11 +50,7 @@ def chart_panel(
     *,
     wide: bool = False,
 ) -> html.Div:
-    style = (
-        {"gridColumn": "1 / -1"}
-        if wide
-        else None
-    )
+    style = {"gridColumn": "1 / -1"} if wide else None
 
     return html.Div(
         className="panel chart-panel",
@@ -83,13 +70,8 @@ def chart_panel(
                         "Apply filters to display results.",
                         height=390,
                     ),
-                    config={
-                        "displaylogo": False,
-                        "responsive": True,
-                    },
-                    style={
-                        "height": "390px",
-                    },
+                    config={"displaylogo": False, "responsive": True},
+                    style={"height": "390px"},
                 ),
                 type="circle",
             ),
@@ -97,9 +79,46 @@ def chart_panel(
     )
 
 
-def records_table(
-    tracks: pd.DataFrame,
-) -> html.Div | html.Table:
+def model_distribution_table(tracks: pd.DataFrame) -> html.Table:
+    """Render statistical metrics (Min, Q1, Median, Q3, Max, Mean) per model."""
+    if tracks.empty:
+        return html.Div("No data available for statistics.", className="empty-state")
+
+    rows = []
+    for model, group in tracks.groupby("driving_model"):
+        wind = pd.to_numeric(group["max_wind_speed"], errors="coerce").dropna()
+        days = (pd.to_numeric(group["lifetime_hours"], errors="coerce") / 24.0).dropna()
+
+        if wind.empty or days.empty:
+            continue
+
+        rows.append(
+            html.Tr([
+                html.Td(html.Strong(model)),
+                html.Td(f"{wind.quantile(0.25):.1f} / {days.quantile(0.25):.1f}"),
+                html.Td(f"{wind.median():.1f} / {days.median():.1f}"),
+                html.Td(f"{wind.quantile(0.75):.1f} / {days.quantile(0.75):.1f}"),
+                html.Td(f"{wind.min():.0f}–{wind.max():.0f} / {days.min():.1f}–{days.max():.1f}"),
+                html.Td(f"{wind.mean():.1f} / {days.mean():.1f}"),
+            ])
+        )
+
+    return html.Table([
+        html.Thead(
+            html.Tr([
+                html.Th("Model"),
+                html.Th("Q1 (Wind km/h / Days)"),
+                html.Th("Median (Wind / Days)"),
+                html.Th("Q3 (Wind / Days)"),
+                html.Th("Min–Max Range"),
+                html.Th("Mean"),
+            ])
+        ),
+        html.Tbody(rows),
+    ])
+
+
+def records_table(tracks: pd.DataFrame) -> html.Div | html.Table:
     if tracks.empty:
         return html.Div(
             "No cyclone records match the filters.",
@@ -107,82 +126,52 @@ def records_table(
         )
 
     rows = []
-
     for _, row in tracks.iterrows():
         category = int(row["max_category"])
 
         rows.append(
-            html.Tr(
-                [
-                    html.Td(
-                        [
-                            html.Strong(
-                                (
-                                    f"Cyclone "
-                                    f"{row['raw_track_id']} "
-                                    f"({row['season']})"
-                                )
-                            ),
-                            html.Small(
-                                (
-                                    f"{row['dataset']} · "
-                                    f"{row['tracker']} · "
-                                    f"{row['driving_model']}"
-                                ),
-                                className="track-meta",
-                            ),
-                        ]
+            html.Tr([
+                html.Td([
+                    html.Strong(f"Cyclone {row['raw_track_id']} ({row['season']})"),
+                    html.Small(
+                        f"{row['dataset']} · {row['tracker']} · {row['driving_model']}",
+                        className="track-meta",
                     ),
-                    html.Td(row["dataset"]),
-                    html.Td(row["driving_model"]),
-                    html.Td(row["tracker"]),
-                    html.Td(row["region"]),
-                    html.Td(str(row["season"])),
-                    html.Td(
-                        html.Span(
-                            f"Category {category}",
-                            className=(
-                                f"category-pill "
-                                f"category-{category}"
-                            ),
-                        )
-                    ),
-                    html.Td(
-                        f"{row['max_wind_speed']:.0f} km/h"
-                    ),
-                    html.Td(
-                        f"{row['lifetime_hours']:.0f} h"
-                    ),
-                    html.Td(
-                        "Yes"
-                        if row["landfall"]
-                        else "No"
-                    ),
-                ]
-            )
+                ]),
+                html.Td(row["dataset"]),
+                html.Td(row["driving_model"]),
+                html.Td(row["tracker"]),
+                html.Td(row["region"]),
+                html.Td(str(row["season"])),
+                html.Td(
+                    html.Span(
+                        f"Category {category}",
+                        className=f"category-pill category-{category}",
+                    )
+                ),
+                html.Td(f"{row['max_wind_speed']:.0f} km/h"),
+                html.Td(f"{row['lifetime_hours']:.0f} h"),
+                html.Td("Yes" if row["landfall"] else "No"),
+            ])
         )
 
-    return html.Table(
-        [
-            html.Thead(
-                html.Tr(
-                    [
-                        html.Th("Track"),
-                        html.Th("Dataset"),
-                        html.Th("Model"),
-                        html.Th("Tracker"),
-                        html.Th("Region"),
-                        html.Th("Season"),
-                        html.Th("Intensity"),
-                        html.Th("Peak wind"),
-                        html.Th("Lifetime"),
-                        html.Th("Landfall"),
-                    ]
-                )
-            ),
-            html.Tbody(rows),
-        ]
-    )
+    return html.Table([
+        html.Thead(
+            html.Tr([
+                html.Th("Track"),
+                html.Th("Dataset"),
+                html.Th("Model"),
+                html.Th("Tracker"),
+                html.Th("Region"),
+                html.Th("Season"),
+                html.Th("Intensity"),
+                html.Th("Peak wind"),
+                html.Th("Lifetime"),
+                html.Th("Landfall"),
+            ])
+        ),
+        html.Tbody(rows),
+    ])
 
 
 def density_card(
@@ -196,27 +185,15 @@ def density_card(
         children=[
             html.Div(
                 [
-                    html.H3(
-                        f"{model} track density"
-                    ),
-                    html.P(
-                        (
-                            f"{track_count:,} tracks · "
-                            f"{point_count:,} observations"
-                        )
-                    ),
+                    html.H3(f"{model} track density"),
+                    html.P(f"{track_count:,} tracks · {point_count:,} observations"),
                 ],
                 className="panel-heading compact",
             ),
             dcc.Graph(
                 figure=figure,
-                config={
-                    "displaylogo": False,
-                    "responsive": True,
-                },
-                style={
-                    "height": "500px",
-                },
+                config={"displaylogo": False, "responsive": True},
+                style={"height": "500px"},
             ),
         ],
     )

@@ -13,6 +13,15 @@ class BARPALoader(BaseCSVTrackLoader):
 
     dataset_type = "barpa"
     dataset_label = "BARPA"
-    filename_tokens = (
-        "barpa",
-    )
+    filename_tokens = ("barpa",)
+
+    def __init__(
+        self,
+        *,
+        default_region: str = "Australia",
+        default_wind_unit: str = "km/h",  # Explicitly set BARPA raw unit to km/h
+    ) -> None:
+        super().__init__(
+            default_region=default_region,
+            default_wind_unit=default_wind_unit,
+        )
