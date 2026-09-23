@@ -36,19 +36,14 @@ def normalise_longitude(longitude: float) -> float:
     return value
 
 
-def category_from_wind_kmh(
-    wind_speed: Optional[float],
-) -> int:
-    """Assign an Australian tropical cyclone category from wind speed."""
+def category_from_wind_kmh(wind_speed: Optional[float]) -> int:
+    """Assign an Australian tropical cyclone category from wind speed in km/h."""
     if wind_speed is None:
         return 0
 
     wind = float(wind_speed)
 
-    # Convert m/s to km/h if value is in m/s (< 100 m/s)
-    if 0 < wind < 100:
-        wind = wind * 3.6
-
+    # Australian Bureau of Meteorology Cyclone Scale (10-min sustained wind in km/h)
     if wind >= 200:
         return 5
     if wind >= 160:

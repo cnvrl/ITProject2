@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
 import pandas as pd
+
+from app.models.tc_record import TCRecord
 
 
 @dataclass(frozen=True)
-class SummaryMetrics:
+class DashboardSummaryMetrics:
     cyclone_count: int
     landfall_count: int
     landfall_rate: float
@@ -16,218 +17,76 @@ class SummaryMetrics:
     median_lifetime_hours: float
 
 
-def summary_metrics(
-    tracks: pd.DataFrame,
-) -> SummaryMetrics:
+def summary_metrics(tracks: pd.DataFrame) -> DashboardSummaryMetrics:
     if tracks.empty:
-        return SummaryMetrics(
-            cyclone_count=0,
-            landfall_count=0,
-            landfall_rate=0.0,
-            average_wind=0.0,
-            peak_wind=0.0,
-            average_lifetime_hours=0.0,
-            median_lifetime_hours=0.0,
-        )
+        return DashboardSummaryMetrics(0, 0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
-    count = len(tracks)
-    landfalls = int(
-        tracks["landfall"].fillna(False).sum()
-    )
+    total_count = len(tracks)
+    landfall_count = int(tracks["landfall"].sum())
+    landfall_rate = (landfall_count / total_count * 100.0) if total_count > 0 else 0.0
 
-    wind = pd.to_numeric(
-        tracks["max_wind_speed"],
-        errors="coerce",
-    ).fillna(0)
+    avg_wind = float(tracks["max_wind_speed"].mean())
+    peak_wind = float(tracks["max_wind_speed"].max())
+    avg_lifetime = float(tracks["lifetime_hours"].mean())
+    med_lifetime = float(tracks["lifetime_hours"].median())
 
-    lifetime = pd.to_numeric(
-        tracks["lifetime_hours"],
-        errors="coerce",
-    ).fillna(0)
-
-    return SummaryMetrics(
-        cyclone_count=count,
-        landfall_count=landfalls,
-        landfall_rate=(
-            landfalls / count * 100
-            if count
-            else 0.0
-        ),
-        average_wind=float(wind.mean()),
-        peak_wind=float(wind.max()),
-        average_lifetime_hours=float(
-            lifetime.mean()
-        ),
-        median_lifetime_hours=float(
-            lifetime.median()
-        ),
+    return DashboardSummaryMetrics(
+        cyclone_count=total_count,
+        landfall_count=landfall_count,
+        landfall_rate=landfall_rate,
+        average_wind=avg_wind,
+        peak_wind=peak_wind,
+        average_lifetime_hours=avg_lifetime,
+        median_lifetime_hours=med_lifetime,
     )
 
 
-def frequency_by_model(
-    tracks: pd.DataFrame,
-) -> pd.DataFrame:
+def frequency_by_model(tracks: pd.DataFrame) -> pd.DataFrame:
     if tracks.empty:
-        return pd.DataFrame(
-            columns=[
-                "driving_model",
-                "season",
-                "cyclones",
-            ]
-        )
+        return pd.DataFrame(columns=["season", "driving_model", "cyclones"])
 
-    return (
-        tracks
-        .dropna(
-            subset=[
-                "driving_model",
-                "analysis_year",
-                "track_id",
-            ]
-        )
-        .groupby(
-            [
-                "driving_model",
-                "analysis_year",
-            ],
-            as_index=False,
-        )["track_id"]
-        .nunique()
-        .rename(
-            columns={
-                "analysis_year": "season",
-                "track_id": "cyclones",
-            }
-        )
+    grouped = (
+        tracks.groupby(["season", "driving_model"])
+        .size()
+        .reset_index(name="cyclones")
     )
+    return grouped
 
 
-def intensity_by_track(
-    tracks: pd.DataFrame,
-) -> pd.DataFrame:
-    columns = [
-        "track_id",
-        "driving_model",
-        "max_wind_speed",
-        "max_category",
-    ]
-
+def intensity_by_track(tracks: pd.DataFrame) -> pd.DataFrame:
     if tracks.empty:
-        return pd.DataFrame(columns=columns)
-
-    return (
-        tracks[columns]
-        .drop_duplicates(subset=["track_id"])
-        .dropna(subset=["driving_model"])
-        .copy()
-    )
+        return pd.DataFrame(columns=["driving_model", "max_wind_speed"])
+    return tracks[["driving_model", "max_wind_speed"]].copy()
 
 
-def longevity_by_track(
-    tracks: pd.DataFrame,
-) -> pd.DataFrame:
-    columns = [
-        "track_id",
-        "driving_model",
-        "lifetime_hours",
-    ]
-
+def longevity_by_track(tracks: pd.DataFrame) -> pd.DataFrame:
     if tracks.empty:
-        return pd.DataFrame(
-            columns=columns + ["lifetime_days"]
-        )
+        return pd.DataFrame(columns=["driving_model", "lifetime_days"])
 
-    result = (
-        tracks[columns]
-        .drop_duplicates(subset=["track_id"])
-        .copy()
-    )
-
-    result["lifetime_hours"] = pd.to_numeric(
-        result["lifetime_hours"],
-        errors="coerce",
-    )
-
-    result = result[
-        result["lifetime_hours"].ge(0)
-    ].dropna(subset=["lifetime_hours"])
-
-    result["lifetime_days"] = (
-        result["lifetime_hours"] / 24.0
-    )
-
-    return result
+    df = tracks[["driving_model", "lifetime_hours"]].copy()
+    df["lifetime_days"] = df["lifetime_hours"] / 24.0
+    return df
 
 
-def strongest_tracks(
-    tracks: pd.DataFrame,
-    limit: int = 12,
-) -> pd.DataFrame:
+def strongest_tracks(tracks: pd.DataFrame, limit: int = 15) -> pd.DataFrame:
     if tracks.empty:
-        return tracks.copy()
-
-    return tracks.sort_values(
-        [
-            "max_category",
-            "max_wind_speed",
-        ],
-        ascending=False,
-    ).head(limit).copy()
+        return pd.DataFrame()
+    return tracks.sort_values("max_wind_speed", ascending=False).head(limit)
 
 
-def comparison_summary(
-    tracks: pd.DataFrame,
-) -> pd.DataFrame:
-    columns = [
-        "model",
-        "cyclone_count",
-        "mean_frequency_per_season",
-        "mean_peak_wind_kmh",
-        "maximum_wind_kmh",
-        "mean_longevity_days",
-        "landfall_count",
-    ]
-
+def comparison_summary(tracks: pd.DataFrame) -> pd.DataFrame:
     if tracks.empty:
-        return pd.DataFrame(columns=columns)
+        return pd.DataFrame()
 
-    rows: list[dict] = []
+    summary = tracks.groupby("driving_model").agg(
+        total_cyclones=("track_id", "count"),
+        avg_wind_kmh=("max_wind_speed", "mean"),
+        max_wind_kmh=("max_wind_speed", "max"),
+        avg_duration_hours=("lifetime_hours", "mean"),
+        landfalls=("landfall", "sum"),
+    ).reset_index()
 
-    for model, group in tracks.groupby(
-        "driving_model"
-    ):
-        annual = (
-            group.groupby("analysis_year")[
-                "track_id"
-            ]
-            .nunique()
-        )
+    # Alias 'model' to 'driving_model' for compatibility with report generators
+    summary["model"] = summary["driving_model"]
 
-        rows.append(
-            {
-                "model": model,
-                "cyclone_count": int(
-                    group["track_id"].nunique()
-                ),
-                "mean_frequency_per_season": (
-                    float(annual.mean())
-                    if not annual.empty
-                    else 0.0
-                ),
-                "mean_peak_wind_kmh": float(
-                    group["max_wind_speed"].mean()
-                ),
-                "maximum_wind_kmh": float(
-                    group["max_wind_speed"].max()
-                ),
-                "mean_longevity_days": float(
-                    group["lifetime_hours"].mean()
-                    / 24
-                ),
-                "landfall_count": int(
-                    group["landfall"].sum()
-                ),
-            }
-        )
-
-    return pd.DataFrame(rows, columns=columns)
+    return summary

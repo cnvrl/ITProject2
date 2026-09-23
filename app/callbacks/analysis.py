@@ -17,11 +17,13 @@ from app.figures import (
     intensity_figure,
     longevity_figure,
 )
+from app.figures.density_ttest import welch_pvalue_map_figure
 from app.services.analysis_service import (
     strongest_tracks,
     summary_metrics,
 )
 from app.services.dashboard_data_service import DashboardData
+from app.services.density_ttest_service import compute_density_welch_p_grid
 from app.services.filter_service import (
     clean_selection,
     create_criteria,
@@ -56,6 +58,7 @@ def register_analysis_callbacks(
         Output("longevity-chart", "figure"),
         Output("model-stats-table", "children"),
         Output("density-heatmaps", "children"),
+        Output("welch-ttest-map", "figure"),
         Output("records-table", "children"),
         Output("selected-cyclone", "options"),
         Output("selected-cyclone", "value"),
@@ -130,6 +133,7 @@ def register_analysis_callbacks(
                 empty,
                 html.Div("No matching data", className="empty-state"),
                 [html.Div("No cyclone observations match the active filters.", className="empty-state")],
+                empty,
                 records_table(selected),
                 [],
                 None,
@@ -153,7 +157,15 @@ def register_analysis_callbacks(
                 )
             )
 
-        # Simplified cyclone selection label format
+        hist_points = selected_points[selected_points["season"] <= SETTINGS.historical_end_year]
+        fut_points = selected_points[selected_points["season"] > SETTINGS.historical_end_year]
+
+        welch_res = compute_density_welch_p_grid(
+            hist_points,
+            fut_points,
+        )
+        welch_fig = welch_pvalue_map_figure(welch_res)
+
         selector_options = [
             {
                 "label": (
@@ -193,6 +205,7 @@ def register_analysis_callbacks(
             longevity_figure(selected),
             model_distribution_table(selected),
             density_cards,
+            welch_fig,
             records_table(strongest),
             selector_options,
             cyclone_value,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Mapping, Optional
-
+from app.config import SETTINGS
 
 def coerce_datetime(value: object) -> Optional[datetime]:
     """Convert common timestamp values to datetime."""
@@ -63,8 +63,10 @@ def optional_int(value: object) -> Optional[int]:
 
 def is_australia_landfall(lat: float, lon: float) -> bool:
     """Check if latitude/longitude falls within Australian land boundaries."""
-    return (-44.0 <= lat <= -10.5) and (113.0 <= lon <= 153.8)
-
+    return (
+        (SETTINGS.aus_landfall_min_lat <= lat <= SETTINGS.aus_landfall_max_lat)
+        and (SETTINGS.aus_landfall_min_lon <= lon <= SETTINGS.aus_landfall_max_lon)
+    )
 
 @dataclass
 class TrackPoint:

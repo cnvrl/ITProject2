@@ -55,6 +55,15 @@ class Settings:
     default_region: str = "Australia"
     default_model_count: int = 2
 
+    welch_min_longitude: float = 100.0
+    welch_max_longitude: float = 180.0
+    welch_min_latitude: float = -60.0
+    welch_max_latitude: float = 0.0
+
+    aus_landfall_min_lat: float = -44.0
+    aus_landfall_max_lat: float = -10.5
+    aus_landfall_min_lon: float = 113.0
+    aus_landfall_max_lon: float = 153.8
 
 SETTINGS = Settings()
 
@@ -160,6 +169,7 @@ MODEL_COLOURS = [
     "#377eb8",
     "#6a994e",
 ]
+
 
 
 def ensure_runtime_directories() -> None:

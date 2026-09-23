@@ -9,6 +9,7 @@ from app.config import (
     SUPPORTED_DATASET_TYPES,
 )
 from app.models.tc_record import TCRecord
+from app.pipeline.segmentation import split_tracks_by_gap
 from app.pipeline.standardize import standardize_records
 from app.pipeline.validators import (
     ValidationReport,
@@ -91,6 +92,7 @@ class Ingestor:
         self,
         loaders: Optional[list[DatasetLoader]] = None,
         strict_validation: bool = False,
+        max_gap_hours: float = 24.0,
     ) -> None:
         self._loaders = (
             list(loaders)
@@ -98,6 +100,7 @@ class Ingestor:
             else build_default_loaders()
         )
         self.strict_validation = strict_validation
+        self.max_gap_hours = max_gap_hours
 
     def select_loader(
         self,
@@ -160,8 +163,13 @@ class Ingestor:
                 )
 
         standard_records = standardize_records(raw_records)
-        validation = validate_records(
+        segmented_records = split_tracks_by_gap(
             standard_records,
+            max_gap_hours=self.max_gap_hours,
+        )
+
+        validation = validate_records(
+            segmented_records,
             strict=self.strict_validation,
         )
 
@@ -169,16 +177,17 @@ class Ingestor:
             "loader": loader.__class__.__name__,
             "source_filename": path.name,
             "source_path": str(path),
-            "record_count": len(standard_records),
+            "record_count": len(segmented_records),
             "validation_error_count": validation.error_count,
             "validation_warning_count": validation.warning_count,
+            "time_gap_threshold_hours": self.max_gap_hours,
             **loader_metadata,
         }
 
         return IngestionResult(
             source=path,
             dataset_type=resolved_type,
-            records=standard_records,
+            records=segmented_records,
             validation=validation,
             metadata=metadata,
         )

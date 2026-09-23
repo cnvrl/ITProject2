@@ -257,6 +257,27 @@ def create_layout(dashboard_data: DashboardData) -> html.Div:
                             ),
 
                             html.Section(
+                                className="panel",
+                                children=[
+                                    html.Div(
+                                        [
+                                            html.H3("Statistical Significance & Welch's T-Test Map"),
+                                            html.P("Spatial grid of mean seasonal density changes (Future − Historical) with statistically significant cells (p < 0.05)."),
+                                        ],
+                                        className="panel-heading",
+                                    ),
+                                    dcc.Loading(
+                                        dcc.Graph(
+                                            id="welch-ttest-map",
+                                            config={"displaylogo": False, "responsive": True},
+                                            style={"height": "480px"},
+                                        ),
+                                        type="circle",
+                                    ),
+                                ],
+                            ),
+
+                            html.Section(
                                 className="panel table-panel",
                                 children=[
                                     html.Div(

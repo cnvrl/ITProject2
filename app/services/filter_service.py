@@ -162,18 +162,14 @@ def filter_tracks(
 
     return selected.copy()
 
-
 def points_for_tracks(
     points: pd.DataFrame,
     tracks: pd.DataFrame,
 ) -> pd.DataFrame:
+    """Filter point observations belonging to the selected track set using fast set matching."""
     if points.empty or tracks.empty:
         return points.iloc[0:0].copy()
 
-    identifiers = tracks[
-        "track_id"
-    ].dropna().unique()
-
-    return points[
-        points["track_id"].isin(identifiers)
-    ].copy()
+    # Converting track_id Series to set accelerates .isin() filtering
+    track_ids = set(tracks["track_id"])
+    return points[points["track_id"].isin(track_ids)].copy()
