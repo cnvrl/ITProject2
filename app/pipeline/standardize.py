@@ -55,7 +55,7 @@ def category_from_wind_kmh(wind_speed: Optional[float]) -> int:
     if wind >= 63:
         return 1
 
-    return 0
+    return 0 
 
 
 def resolve_scenario(

@@ -16,11 +16,11 @@ class Settings:
     app_name: str = "TC Explorer 2.0"
     app_description: str = "Tropical cyclone analysis dashboard"
 
-    host: str = os.getenv("TC_EXPLORER_HOST", "0.0.0.0")
+    host: str = os.getenv("TC_EXPLORER_HOST", "127.0.0.1")
     port: int = int(os.getenv("TC_EXPLORER_PORT", "8050"))
     debug: bool = os.getenv(
         "TC_EXPLORER_DEBUG",
-        "false",
+        "true",
     ).strip().lower() in {"1", "true", "yes"}
 
     data_dir: Path = Path(
