@@ -139,7 +139,7 @@ python -m app.dashboard
 
 The dashboard will start on:
 
-http://localhost:8050
+http://127.0.0.1:8050
 
 The dashboard loads supported files from the data/ directory. If a file cannot be parsed or does not pass validation, the error is reported in the terminal and the dashboard continues where possible.
 

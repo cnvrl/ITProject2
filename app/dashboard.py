@@ -45,4 +45,5 @@ if __name__ == "__main__":
         debug=SETTINGS.debug,
         host=SETTINGS.host,
         port=SETTINGS.port,
+        use_reloader=SETTINGS.use_reloader,
     )

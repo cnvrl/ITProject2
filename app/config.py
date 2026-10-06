@@ -16,11 +16,18 @@ class Settings:
     app_name: str = "TC Explorer 2.0"
     app_description: str = "Tropical cyclone analysis dashboard"
 
-    host: str = os.getenv("TC_EXPLORER_HOST", "127.0.0.1")
+    # Bind to loopback only; the dashboard is not exposed on the LAN IP.
+    host: str = "127.0.0.1"
     port: int = int(os.getenv("TC_EXPLORER_PORT", "8050"))
     debug: bool = os.getenv(
         "TC_EXPLORER_DEBUG",
         "true",
+    ).strip().lower() in {"1", "true", "yes"}
+    # The reloader re-imports the app in a child process, loading all
+    # datasets twice before the server starts. Off by default.
+    use_reloader: bool = os.getenv(
+        "TC_EXPLORER_RELOAD",
+        "false",
     ).strip().lower() in {"1", "true", "yes"}
 
     data_dir: Path = Path(
