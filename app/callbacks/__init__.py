@@ -2,6 +2,9 @@
 
 from dash import Dash
 
+from app.callbacks.about import (
+    register_about_callbacks,
+)
 from app.callbacks.analysis import (
     register_analysis_callbacks,
 )
@@ -42,3 +45,5 @@ def register_callbacks(
         app,
         dashboard_data,
     )
+
+    register_about_callbacks(app)

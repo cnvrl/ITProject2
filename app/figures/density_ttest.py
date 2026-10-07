@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import plotly.graph_objects as go
 
+from app.figures.common import add_land_and_coastline, coordinate_labels
+
 
 def welch_pvalue_map_figure(
     welch_res: dict[str, np.ndarray],
@@ -35,25 +37,42 @@ def welch_pvalue_map_figure(
 
     significant_mask = p_values < alpha
 
+    # Cells with no tracks in either period have no test result; leave them
+    # empty so the land and sea underneath stay visible.
+    no_data = np.isnan(p_values) & (mean_diff == 0)
+    z = np.where(no_data, np.nan, mean_diff)
+
     figure = go.Figure()
 
     figure.add_trace(
         go.Heatmap(
-            z=mean_diff,
+            z=z,
             x=lons,
             y=lats,
             colorscale="RdBu_r",
             zmid=0,
+            hoverongaps=False,
+            text=coordinate_labels(lons, lats),
             colorbar={"title": "Δ Density / Season", "thickness": 14},
             hovertemplate=(
-                "Lon: %{x:.1f}°E<br>"
-                "Lat: %{y:.1f}°S<br>"
+                "%{text}<br>"
                 "Δ Mean Density: %{z:.2f}<br>"
                 "<extra></extra>"
             ),
         )
     )
 
+    half_lon = float(lons[1] - lons[0]) / 2 if len(lons) > 1 else 0.5
+    half_lat = float(lats[1] - lats[0]) / 2 if len(lats) > 1 else 0.5
+
+    add_land_and_coastline(
+        figure,
+        lon_range=(float(lons[0] - half_lon), float(lons[-1] + half_lon)),
+        lat_range=(float(lats[0] - half_lat), float(lats[-1] + half_lat)),
+        height=480,
+    )
+
+    # Added after the coastline so the significance markers sit on top.
     sig_lons, sig_lats = np.meshgrid(lons, lats)
     figure.add_trace(
         go.Scatter(
@@ -67,14 +86,9 @@ def welch_pvalue_map_figure(
     )
 
     figure.update_layout(
-        template="plotly_white",
-        height=480,
-        margin={"l": 50, "r": 20, "t": 30, "b": 50},
-        xaxis_title="Longitude (°E)",
-        yaxis_title="Latitude (°S)",
-        legend={"orientation": "h", "x": 0.01, "y": 1.05},
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        margin={"l": 50, "r": 20, "t": 40, "b": 40},
+        showlegend=True,
+        legend={"orientation": "h", "x": 0, "xanchor": "left", "y": 1.01, "yanchor": "bottom"},
     )
 
     return figure

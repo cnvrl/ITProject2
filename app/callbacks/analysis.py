@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from dash import (
     Dash,
     Input,
@@ -18,12 +20,17 @@ from app.figures import (
     longevity_figure,
 )
 from app.figures.density_ttest import welch_pvalue_map_figure
+from app.figures.theme import model_colour_map
 from app.services.analysis_service import (
     strongest_tracks,
     summary_metrics,
 )
 from app.services.dashboard_data_service import DashboardData
-from app.services.density_ttest_service import compute_density_welch_p_grid
+from app.services.density_ttest_service import (
+    compute_density_welch_p_grid,
+    density_colour_max,
+    track_density_grid,
+)
 from app.services.filter_service import (
     clean_selection,
     create_criteria,
@@ -139,23 +146,63 @@ def register_analysis_callbacks(
                 None,
             )
 
+        # One colour per model for every chart, table and map below.
+        colours = model_colour_map(available_models(data.tracks, dataset, tracker) + list(models))
+
         selected_points = points_for_tracks(data.points, selected)
         metrics = summary_metrics(selected)
         strongest = strongest_tracks(selected)
 
-        density_cards = []
+        # Seasons each model covers under the active filters, ignoring the
+        # minimum category, so a strict intensity filter that leaves some
+        # seasons without tracks still divides by every season in range.
+        coverage = filter_tracks(
+            data.tracks,
+            replace(criteria, minimum_category=0),
+        )
+
+        density_maps = []
         for model in models:
             model_tracks = selected[selected["driving_model"].eq(model)]
             model_points = points_for_tracks(selected_points, model_tracks)
+            model_seasons = coverage.loc[
+                coverage["driving_model"].eq(model),
+                "season",
+            ].nunique()
 
-            density_cards.append(
-                density_card(
-                    model,
-                    model_tracks["track_id"].nunique(),
-                    len(model_points),
-                    density_figure(model_points, model),
-                )
+            grid, lon_centers, lat_centers = track_density_grid(
+                model_points,
+                n_seasons=model_seasons,
+                cell_degrees=SETTINGS.density_cell_degrees,
+                lon_range=(SETTINGS.density_min_longitude, SETTINGS.density_max_longitude),
+                lat_range=(SETTINGS.density_min_latitude, SETTINGS.density_max_latitude),
             )
+            density_maps.append((model, model_tracks, model_points, grid, lon_centers, lat_centers))
+
+        # One colour scale for every model, so the maps can be compared.
+        shared_max = density_colour_max([grid for _, _, _, grid, _, _ in density_maps])
+
+        # Smaller tiles when more models share the row.
+        tile_height = {1: 560, 2: 470}.get(len(density_maps), 400)
+
+        density_cards = [
+            density_card(
+                model,
+                model_tracks["track_id"].nunique(),
+                len(model_points),
+                density_figure(
+                    grid,
+                    lon_centers,
+                    lat_centers,
+                    model,
+                    zmax=shared_max,
+                    height=tile_height,
+                ),
+                colour=colours.get(model),
+                height=tile_height,
+            )
+            for model, model_tracks, model_points, grid, lon_centers, lat_centers in density_maps
+        ]
 
         hist_points = selected_points[selected_points["season"] <= SETTINGS.historical_end_year]
         fut_points = selected_points[selected_points["season"] > SETTINGS.historical_end_year]
@@ -200,13 +247,13 @@ def register_analysis_callbacks(
             f"{metrics.average_lifetime_hours:.0f} h",
             f"Median {metrics.median_lifetime_hours:.0f} h",
             f"Showing {len(selected):,} records · {years[0]}–{years[1]} · {model_text}",
-            frequency_figure(selected),
-            intensity_figure(selected),
-            longevity_figure(selected),
-            model_distribution_table(selected),
+            frequency_figure(selected, colours),
+            intensity_figure(selected, colours),
+            longevity_figure(selected, colours),
+            model_distribution_table(selected, colours),
             density_cards,
             welch_fig,
-            records_table(strongest),
+            records_table(strongest, colours),
             selector_options,
             cyclone_value,
         )

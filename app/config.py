@@ -44,6 +44,20 @@ class Settings:
         )
     ).resolve()
 
+    # Editable "Description & instructions" text shown at the top of the page.
+    about_file: Path = Path(
+        os.getenv(
+            "TC_EXPLORER_ABOUT_FILE",
+            str(APP_DIR / "content" / "about.json"),
+        )
+    ).resolve()
+    # Set TC_EXPLORER_ALLOW_ABOUT_EDIT=false on a public deployment to hide the Edit button.
+    allow_about_edit: bool = os.getenv(
+        "TC_EXPLORER_ALLOW_ABOUT_EDIT",
+        "true",
+    ).strip().lower() in {"1", "true", "yes"}
+    about_max_chars: int = 4000
+
     output_dir: Path = Path(
         os.getenv(
             "TC_EXPLORER_OUTPUT_DIR",
@@ -58,6 +72,14 @@ class Settings:
     heatmap_min_latitude: float = -48.0
     heatmap_max_latitude: float = 2.0
     heatmap_max_points: int = 75_000
+
+    # Filtered track density map: distinct tracks per season in each cell.
+    # Cell edges fall on even degrees (2-degree cells by default).
+    density_cell_degrees: float = 2.0
+    density_min_longitude: float = 100.0
+    density_max_longitude: float = 176.0
+    density_min_latitude: float = -46.0
+    density_max_latitude: float = 4.0
 
     default_region: str = "Australia"
     default_model_count: int = 2
@@ -156,26 +178,32 @@ MODEL_NUMBER_GUIDE = {
 }
 
 
+# Australian cyclone categories as one ordered orange-to-red ramp (light =
+# weaker), so the order reads from the colour alone. Category 0 is neutral.
 CATEGORY_COLOURS = {
-    0: "#94a3b8",
-    1: "#38bdf8",
-    2: "#22c55e",
-    3: "#facc15",
-    4: "#fb923c",
-    5: "#ef4444",
+    0: "#a9b5c1",
+    1: "#f69c51",
+    2: "#dd793a",
+    3: "#c25826",
+    4: "#a63515",
+    5: "#8a0509",
 }
 
 
+# Driving-model series colours. The order is checked for colour-blind
+# separation between neighbours; each model keeps its slot (see
+# app.figures.theme.model_colour_map). ERA5 reanalysis uses the reference ink.
 MODEL_COLOURS = [
-    "#1769aa",
-    "#ef7d32",
-    "#2f8f65",
-    "#9b59b6",
-    "#d4a017",
-    "#c44536",
-    "#377eb8",
-    "#6a994e",
+    "#1b84ff",
+    "#eb6834",
+    "#13a8b5",
+    "#eda100",
+    "#e87ba4",
+    "#008300",
+    "#4a3aa7",
 ]
+
+MODEL_REFERENCE_COLOUR = "#2a3547"
 
 
 

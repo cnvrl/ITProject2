@@ -1,0 +1,5 @@
+{
+  "description": "TC Explorer 2.0 is a web platform for loading, validating, analysing and visualising tropical cyclone tracks from regional climate models. It compares how often cyclones form, how strong they get, how long they last and where they travel across the BARPA and CCAM models, the CDD and TE tracking methods and the ERA5 reanalysis, for the Australian region under the SSP3-7.0 scenario.",
+  "instructions": "1. Choose a dataset (BARPA or CCAM) and a cyclone tracker (CDD or TE) in the sidebar.\n2. Set the number of models to compare, then pick each driving model.\n3. Narrow the scenario, year range and minimum category if needed.\n4. Select Apply filters. Every chart, table and map updates together.\n5. Pick a cyclone from the Strongest cyclones list to see its track on the map.\n6. Use Download CSV, Summary CSV or Report in the top bar to export the filtered results.",
+  "updated_at": "2026-10-07T00:00:00+00:00"
+}

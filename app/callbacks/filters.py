@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dash import (
     ALL,
+    MATCH,
     Dash,
     Input,
     Output,
@@ -12,6 +13,7 @@ from dash import (
 )
 
 from app.config import SETTINGS
+from app.figures.theme import model_colour_map
 from app.services.dashboard_data_service import (
     DashboardData,
 )
@@ -164,6 +166,7 @@ def register_filter_callbacks(
             if model not in selected:
                 selected.append(model)
 
+        colours = model_colour_map(available)
         controls = []
 
         for index in range(requested):
@@ -179,6 +182,20 @@ def register_filter_callbacks(
                         html.Label(
                             f"Model {index + 1}"
                         ),
+                        html.Div(
+                            [
+                                html.Span(
+                                    id={
+                                        "type": "model-dot",
+                                        "index": index,
+                                    },
+                                    className="dot",
+                                    style={
+                                        "backgroundColor": colours.get(
+                                            current_value
+                                        ),
+                                    },
+                                ),
                         dcc.Dropdown(
                             id={
                                 "type": (
@@ -204,6 +221,9 @@ def register_filter_callbacks(
                                 "filter-dropdown "
                                 "model-dropdown"
                             ),
+                        ),
+                            ],
+                            className="model-field",
                         ),
                     ],
                     className=(
@@ -276,6 +296,45 @@ def register_filter_callbacks(
             )
 
         return outputs
+
+    @app.callback(
+        Output(
+            {
+                "type": "model-dot",
+                "index": MATCH,
+            },
+            "style",
+        ),
+        Input(
+            {
+                "type": "comparison-model",
+                "index": MATCH,
+            },
+            "value",
+        ),
+        State("dataset-filter", "value"),
+        State("tracker-filter", "value"),
+        prevent_initial_call=True,
+    )
+    def colour_model_dot(
+        value,
+        dataset,
+        tracker,
+    ):
+        colours = model_colour_map(
+            available_models(
+                data.tracks,
+                dataset,
+                tracker,
+            )
+        )
+
+        return {
+            "backgroundColor": colours.get(
+                value,
+                "#a9b5c1",
+            ),
+        }
 
     @app.callback(
         Output(
