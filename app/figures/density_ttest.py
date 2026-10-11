@@ -1,3 +1,6 @@
+# This module creates cyclone map visualisations, including track-density maps
+# and the detailed map for an individually selected cyclone.
+
 from __future__ import annotations
 
 import numpy as np

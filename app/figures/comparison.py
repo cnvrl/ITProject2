@@ -1,3 +1,6 @@
+# This module creates the Welch's t-test map used to compare cyclone track
+# density between historical and future periods and highlight significant changes.
+
 from __future__ import annotations
 
 import pandas as pd

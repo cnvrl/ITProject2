@@ -1,3 +1,6 @@
+# This module creates comparison charts for cyclone frequency, intensity,
+# and longevity across the selected climate models.
+
 from __future__ import annotations
 
 import json

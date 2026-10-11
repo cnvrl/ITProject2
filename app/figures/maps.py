@@ -1,3 +1,6 @@
+# This module defines the common colours, fonts, and chart styling used
+# throughout the TC Explorer visualisations.
+
 from __future__ import annotations
 
 import numpy as np

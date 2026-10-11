@@ -1,3 +1,6 @@
+# This module exposes the tropical cyclone data models used throughout
+# the TC Explorer application.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

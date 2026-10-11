@@ -1,3 +1,6 @@
+# This module exposes the main figure-building functions so they can be
+# imported easily from other parts of the dashboard.
+
 from __future__ import annotations
 
 from typing import Iterable
