@@ -36,9 +36,9 @@ def create_app() -> Dash:
     return dash_app
 
 
+
 app = create_app()
 server = app.server
-
 
 if __name__ == "__main__":
     app.run(
@@ -47,3 +47,4 @@ if __name__ == "__main__":
         port=8050,
         use_reloader=False,
     )
+
