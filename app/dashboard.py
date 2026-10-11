@@ -42,8 +42,8 @@ server = app.server
 
 if __name__ == "__main__":
     app.run(
-        debug=SETTINGS.debug,
-        host=SETTINGS.host,
-        port=SETTINGS.port,
-        use_reloader=SETTINGS.use_reloader,
+        debug=False,
+        host="127.0.0.1",
+        port=8050,
+        use_reloader=False,
     )

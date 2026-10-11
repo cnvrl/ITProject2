@@ -50,6 +50,8 @@ def _top_bar(dashboard_data: DashboardData) -> html.Header:
                 ],
             ),
             html.Div(className="appbar-spacer"),
+            dcc.Link("Dashboard", href="/", className="bar-btn"),
+            dcc.Link("How to use", href="/help", className="bar-btn"),
             html.Div(
                 [
                     html.Span(className="status-dot"),
@@ -323,14 +325,17 @@ def create_layout(dashboard_data: DashboardData) -> html.Div:
             dcc.Download(id="download-summary"),
             dcc.Download(id="download-report"),
 
+            dcc.Location(id="page-url", refresh=False),
             _top_bar(dashboard_data),
+            html.Div(id="help-page-container", className="page help-page is-hidden"),
 
             html.Div(
                 className="shell",
                 children=[
-                    _sidebar(dashboard_data),
+                    html.Div(_sidebar(dashboard_data), id="dashboard-sidebar-container"),
 
                     html.Main(
+                        id="dashboard-main",
                         className="page",
                         children=[
                             html.Section(

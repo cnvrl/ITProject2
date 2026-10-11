@@ -47,3 +47,5 @@ def register_callbacks(
     )
 
     register_about_callbacks(app)
+    from app.callbacks.help_page import register_help_callbacks
+    register_help_callbacks(app)

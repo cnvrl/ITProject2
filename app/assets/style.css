@@ -1182,3 +1182,13 @@ th.num {
 .icon-wind { --icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%221.8%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22M5 8h8.5a2.5 2.5 0 1 0-2.3-3.2M3 12h15.5a2.5 2.5 0 1 1-2.3 3.2M4 16h5.5a2.5 2.5 0 1 1-2.3 3.2%22/%3E%3C/svg%3E"); }
 .icon-clock { --icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%221.8%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%229%22/%3E%3Cpath d=%22M12 7v5l3 3%22/%3E%3C/svg%3E"); }
 .icon-cyclone { --icon: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Ccircle cx=%2216%22 cy=%2216%22 r=%224.2%22 fill=%22%23000%22/%3E%3Cpath d=%22M16 11.8C16 6.5 20.5 3.5 26 4.5M16 20.2C16 25.5 11.5 28.5 6 27.5%22 fill=%22none%22 stroke=%22%23000%22 stroke-width=%222.6%22 stroke-linecap=%22round%22/%3E%3C/svg%3E"); }
+
+/* Help page uses the existing card, button, typography and appbar styling. */
+.help-page { width: min(1080px, 100%); margin: 0 auto; padding: 28px; }
+.help-page.is-hidden { display: none; }
+.help-section { margin: 18px 0; padding: 24px; }
+.help-section h2 { margin-top: 0; }
+.help-section li { margin-bottom: 12px; line-height: 1.65; }
+.help-section p { line-height: 1.7; }
+.appbar a.bar-btn { text-decoration: none; display: inline-flex; align-items: center; }
+@media(max-width: 720px) { .help-page { padding: 12px; } .help-section { padding: 16px; } }
