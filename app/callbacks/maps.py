@@ -1,3 +1,34 @@
+"""
+This file manages the map callbacks for TC Explorer 2.0.
+
+The main function register_map_callbacks() connects the cyclone map
+and summary section to the Dash application. It updates the map and
+cyclone information when users select a cyclone from the dropdown menu.
+
+The file includes two main functions:
+- _coordinate() converts the latitude and longitude into a readable
+  location format. It returns "Unknown" if the coordinates are missing.
+- update_selected_map() gets the selected cyclone's track and observation
+  data, then updates the map and displays its summary information.
+
+The summary includes cyclone intensity, peak wind speed, minimum pressure,
+lifetime, genesis location and whether the cyclone made landfall.
+
+The code uses Dash and DashboardData classes to manage the application
+and access cyclone records. It also uses Input and Output to update the
+map when users select a different cyclone. Pandas is used to check missing
+values and calculate the minimum recorded pressure.
+
+Supporting functions include selected_track_figure() to display the
+cyclone track, empty_figure() to show an empty map when data is unavailable,
+and summary_chip() to display the cyclone information in separate sections.
+
+If no cyclone is selected or the track data is missing, the function
+displays an empty map with a message to inform the user.
+
+Overall, this file allows users to view individual cyclone tracks
+and their main information through an interactive map.
+"""
 from __future__ import annotations
 
 import pandas as pd

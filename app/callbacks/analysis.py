@@ -1,3 +1,37 @@
+"""
+This file manages the analysis callbacks for TC Explorer 2.0.
+
+The main function register_analysis_callbacks() connects the analysis section
+to the Dash application. It updates the dashboard when users apply or reset
+filters, including dataset, region, scenario, tracker, model, year and category.
+
+The update_analysis() function filters the cyclone data and calculates the
+main statistics, such as total cyclones, landfalls, average wind speed and
+cyclone lifetime. It also updates the frequency, intensity and longevity
+charts, model comparison table, cyclone records and density heatmaps.
+
+The code uses DashboardData to access cyclone tracks and observation data,
+SETTINGS to control the analysis settings, and Dash with Input, Output,
+State and ctx to manage user interactions.
+
+Other supporting functions are used to:
+- create_criteria(), filter_tracks() and points_for_tracks() to filter data.
+- summary_metrics() and strongest_tracks() to calculate cyclone statistics.
+- track_density_grid() and density_colour_max() to prepare density maps.
+- compute_density_welch_p_grid() to compare historical and future cyclone
+  density using Welch's t-test.
+- frequency_figure(), intensity_figure(), longevity_figure() and
+  density_figure() to generate the different charts and maps.
+- density_card(), model_distribution_table() and records_table() to display
+  the results on the dashboard.
+
+If no data matches the selected filters, the function displays empty charts
+and a message to inform the user. It also uses the same colour for each model
+across different charts and maps to make comparisons easier.
+
+Overall, this file connects the analysis functions together and makes sure
+the dashboard results are updated based on the user's selected filters.
+"""
 from __future__ import annotations
 
 from dataclasses import replace

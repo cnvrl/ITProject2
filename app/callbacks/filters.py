@@ -1,3 +1,39 @@
+"""
+This file manages the filter callbacks for TC Explorer 2.0.
+
+The main function register_filter_callbacks() connects the filter section
+to the Dash application. It allows users to select different datasets,
+trackers, regions, scenarios, years, cyclone categories and models.
+
+The file includes several callback functions:
+- show_year_range() displays the selected year range.
+- update_model_count() checks the available models and updates how many
+  models users can select for comparison.
+- render_model_selectors() creates the model dropdown menus based on the
+  selected dataset and tracker. It also shows a message if some models
+  are missing from the loaded data.
+- prevent_duplicate_models() prevents users from selecting the same model
+  in different dropdown menus.
+- colour_model_dot() updates the colour indicator for each selected model.
+- store_selected_models() saves the selected models for other callbacks.
+- reset_filters() returns the filter options to their default values.
+
+The code uses two main classes, Dash and DashboardData. Dash manages the
+application and its callbacks, while DashboardData provides the cyclone
+data and available filter values.
+
+It also uses Input, Output, State and ctx to manage user interactions.
+ALL and MATCH are used to handle multiple model dropdown menus.
+The dcc and html components are used to create the filter interface.
+
+Supporting functions from model_service and filter_service are used to
+check available models, prepare dropdown options and clean selected values.
+The model_colour_map() function gives each model its own colour, while
+SETTINGS controls the default number of models.
+
+Overall, this file makes sure the filter options work correctly and
+allows users to select different cyclone models for comparison.
+"""
 from __future__ import annotations
 
 from dash import (

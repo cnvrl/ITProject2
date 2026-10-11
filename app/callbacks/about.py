@@ -1,3 +1,25 @@
+"""
+This file manages the callbacks for the About section in TC Explorer 2.0.
+
+The main function register_about_callbacks() connects the About section
+to the Dash application. It allows users to view, edit, save or cancel
+changes to the project description and instructions.
+
+The _display() function checks if the text is available and shows a
+default message when there is no content.
+
+The update_about() function handles the Edit, Save and Cancel buttons.
+It uses load_about() to read the saved information and save_about() to
+save new changes. It also checks for errors when saving and displays
+a message if something goes wrong.
+
+The code uses the Dash class, Input, Output, State and ctx to manage
+user interactions. It also uses SETTINGS to control editing permissions,
+file location and the maximum number of characters.
+
+The CSS class variables are used to show or hide the editor and
+buttons depending on what the user is doing.
+"""
 from __future__ import annotations
 
 from dash import (

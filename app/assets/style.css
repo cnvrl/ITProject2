@@ -1,5 +1,140 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
 
+
+/* TC Explorer 2.0
+   This CSS file controls the design of the website.
+   It sets the colours, fonts, layout, buttons and graphs.
+*/
+
+/* Root
+   Stores the main colours, font, sizes and spacing.
+   These variables are used across the website.
+*/
+
+/* Reset
+   Sets the basic style for all HTML elements.
+   It also removes unwanted spacing.
+   Elements: body, html, button, input, select, textarea,
+   h1, h2, h3 and p.
+*/
+
+/* Icons
+   Controls the size and colour of icons.
+   Classes: .icon and .icon-sm.
+*/
+
+/* App Bar
+   Controls the top navigation bar.
+   It shows the project name, status and action buttons.
+   Classes: .appbar, .brand, .brand-glyph, .brand-name,
+   .status-chip, .status-dot, .appbar-actions and .bar-btn.
+*/
+
+/* Shell and Sidebar
+   Creates the main layout and left filter panel.
+   It also controls the banner and filter positions.
+   Classes: .shell, .sidebar, .banner, .banner-avatar,
+   .banner-meta, .filters, .field, .model-field,
+   .side-buttons and .footnote.
+*/
+
+/* Chips
+   Controls the selectable options for region and scenario.
+   It changes the colour when an option is selected.
+   Classes: .chips, .chip and .chip-input.
+*/
+
+/* Dropdowns
+   Controls the dropdown menus used to select data.
+   It also changes the style when users select an option.
+   Classes: .Select-control, .Select-option,
+   .Select-placeholder, .Select-value and .Select-arrow.
+*/
+
+/* Sliders
+   Controls the sliders used to select a value or range.
+   It changes the handle and track when users interact.
+   Classes: .rc-slider, .rc-slider-rail, .rc-slider-track,
+   .rc-slider-handle and .rc-slider-dot.
+*/
+
+/* Buttons
+   Sets the style for different buttons.
+   It includes the main button, text button and outline button.
+   Classes: .btn, .btn-primary, .btn-text and .btn-outline.
+*/
+
+/* Page
+   Controls the main content area of the dashboard.
+   It sets the spacing and position of the page title.
+   Classes: .page, .page-head, .crumbs and .result-summary.
+*/
+
+/* Cards and Grids
+   Organises the information into cards and grid layouts.
+   It helps display graphs and results clearly.
+   Classes: .card, .card-head, .card-actions, .grid,
+   .stats, .two-up, .note and .empty-state.
+*/
+
+/* Description and Instructions
+   Controls the information and instruction section.
+   It also styles the text box and action buttons.
+   Classes: .about-grid, .about-block, .about-text,
+   .textarea, .about-actions and .about-status.
+*/
+
+/* Stat Cards
+   Displays the main statistics in separate cards.
+   It controls the icons, values and labels.
+   Classes: .stat, .stat-icon, .stat-label,
+   .stat-value and .stat-note.
+*/
+
+/* Tables
+   Controls how cyclone data is displayed in tables.
+   It sets the spacing, alignment and row colours.
+   Classes: .table-wrap, .track-id, .model-cell,
+   .pill, .yes and .cyclone-selector.
+   Elements: table, th, td and tr.
+*/
+
+/* Density Tiles
+   Creates the layout for displaying density maps.
+   It controls the size and spacing of each tile.
+   Classes: .tiles, .tile and .tile-head.
+*/
+
+/* Selected Cyclone Track
+   Controls the layout for the selected cyclone.
+   It displays the track, summary and legend.
+   Classes: .track-layout, .summary-chips, .vs,
+   .legend and .category-legend.
+*/
+
+/* Footer and Loading
+   Controls the footer text and loading message.
+   Classes: .footer and ._dash-loading.
+*/
+
+/* Responsive Design
+   Adjusts the website layout for different screen sizes.
+   It makes the dashboard easier to use on smaller screens.
+   Uses @media rules for tablets, laptops and mobile phones.
+*/
+
+/* Icon Shapes
+   Stores the SVG shapes used for different icons.
+   It includes download, report, information, list,
+   edit, location, wind, clock and cyclone icons.
+*/
+
+/* Help Page
+   Controls the design of the help and instruction page.
+   It sets the spacing, text and section layout.
+   Classes: .help-page, .help-section and .bar-btn.
+*/
+
 /* ==========================================================================
    TC EXPLORER 2.0
    MaterialPro-style layout: blue app bar, white filter sidebar, white cards
