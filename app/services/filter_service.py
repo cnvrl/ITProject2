@@ -1,3 +1,6 @@
+# This service calculates cyclone lifetime and duration statistics
+# used in the dashboard analysis.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

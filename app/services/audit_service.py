@@ -1,3 +1,6 @@
+# This service loads and prepares the cyclone data required by the
+# dashboard and makes it available to the user interface.
+
 from __future__ import annotations
 
 import math

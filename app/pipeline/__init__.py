@@ -1,3 +1,6 @@
+# This module controls the ingestion process by detecting dataset types,
+# loading cyclone data, standardising records, and running validation checks.
+
 """Data ingestion, standardisation, and validation pipeline."""
 
 from app.pipeline.ingest import IngestionResult, Ingestor

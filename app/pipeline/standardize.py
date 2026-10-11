@@ -1,3 +1,6 @@
+# This module checks cyclone records for missing, invalid, or inconsistent
+# values before the data is used by the dashboard.
+
 from __future__ import annotations
 
 from copy import deepcopy

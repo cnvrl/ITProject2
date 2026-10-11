@@ -1,3 +1,6 @@
+# This module provides the available dataset loaders used to import
+# tropical cyclone data into the TC Explorer ingestion pipeline.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

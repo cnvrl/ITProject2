@@ -1,3 +1,6 @@
+# This service manages the available climate models and determines which
+# model options should be shown for the selected dataset and tracker.
+
 from __future__ import annotations
 
 from typing import Sequence

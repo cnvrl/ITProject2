@@ -1,3 +1,6 @@
+# This service creates a readable interpretation report summarising
+# tropical cyclone frequency, intensity, longevity, and landfall results.
+
 from __future__ import annotations
 
 import pandas as pd

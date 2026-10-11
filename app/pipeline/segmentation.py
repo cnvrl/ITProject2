@@ -1,3 +1,6 @@
+# This module converts cyclone data from different sources into a consistent
+# standard format used throughout TC Explorer.
+
 from __future__ import annotations
 
 from copy import deepcopy

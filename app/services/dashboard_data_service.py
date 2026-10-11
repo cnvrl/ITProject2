@@ -1,3 +1,6 @@
+# This service performs the density comparison and Welch's t-test calculations
+# used to identify significant changes between cyclone periods.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

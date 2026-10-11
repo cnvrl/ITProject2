@@ -1,3 +1,6 @@
+# This service applies the user's selected filters to the tropical cyclone
+# data shown throughout the dashboard.
+
 from __future__ import annotations
 
 import pandas as pd

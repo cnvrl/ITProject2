@@ -1,3 +1,6 @@
+# This service records important application actions and events for
+# auditing and basic activity tracking.
+
 from __future__ import annotations
 
 from dataclasses import dataclass

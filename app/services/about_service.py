@@ -1,3 +1,6 @@
+# This service calculates statistical analysis results used to compare
+# tropical cyclone datasets and climate models.
+
 from __future__ import annotations
 
 import json

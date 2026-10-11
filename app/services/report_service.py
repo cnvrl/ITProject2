@@ -1,3 +1,6 @@
+# This package contains the main Dash layout and reusable user-interface
+# components used throughout the TC Explorer dashboard.
+
 from __future__ import annotations
 
 import pandas as pd

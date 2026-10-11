@@ -1,3 +1,6 @@
+# This service prepares filtered cyclone data for download and export
+# from the dashboard.
+
 from __future__ import annotations
 
 import numpy as np

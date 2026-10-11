@@ -1,3 +1,6 @@
+# This service loads and provides the information displayed in the
+# About section of the dashboard.
+
 """Application services for TC Explorer."""
 
 from app.services.dashboard_data_service import (

@@ -1,3 +1,6 @@
+# This module builds the main TC Explorer dashboard layout, including
+# navigation, filters, statistics, charts, maps, and export controls.
+
 from __future__ import annotations
 
 import pandas as pd

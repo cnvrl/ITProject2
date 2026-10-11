@@ -1,3 +1,6 @@
+# This module splits cyclone tracks into separate segments when there are
+# large time gaps between consecutive observations.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
